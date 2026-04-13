@@ -192,7 +192,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{val*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
-        # --- GRÁFICOS BARRAS SEMÁFORO CON EFECTO 3D/BOTÓN ---
+        # --- GRÁFICOS BARRAS SEMÁFORO ---
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
             if df_in.empty: return
             
@@ -214,7 +214,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
             df_g['Mes_Str'] = df_g['Month'].map(meses_map)
             
-            # Semáforo de Colores
             def get_color(v):
                 if v < 0.75: return '#E74C3C' 
                 elif v <= 0.85: return '#F1C40F'
@@ -226,19 +225,21 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
             fig = go.Figure(data=[go.Bar(
                 x=df_g['Mes_Str'], y=df_g['Val'], 
-                marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.6)', width=1.5)), # Borde 3D
-                text=df_g['Val'], texttemplate='%{text:.1%}', textposition='outside', opacity=0.85 # Opacidad efecto botón
+                marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.6)', width=1.5)), 
+                text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.9 
             )])
             
-            fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="75%")
-            fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="85%")
+            fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="<b>75%</b>", annotation_font_color='black')
+            fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
             
+            # Titulos negros y negrita (HTML <b>)
             fig.update_layout(
-                title=dict(text=title, font=dict(family="Times", size=13, color=theme_hex)), # Fuente estilizada Times New Roman
+                title=dict(text=f"<b>{title}</b>", font=dict(family="Arial", size=12, color="black")), 
                 margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', 
                 yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title=""
             )
-            fig.update_traces(textfont_size=11, cliponaxis=False)
+            # Etiquetas negras y negrita
+            fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
             
             img = save_chart(fig, w=600, h=220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
@@ -257,8 +258,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.rounded_rect(10, 156, 136, 45, r=3, style='D')
         pdf.rounded_rect(149, 156, 138, 45, r=3, style='D')
         
-        # Título Estilizado
-        pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(*theme_color)
+        pdf.set_xy(10, 156); pdf.set_font("Arial", 'B', 11); pdf.set_text_color(0)
         pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
         
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
@@ -283,13 +283,18 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             
             fig_stack = px.bar(df_pie, x='Porcentaje', y='Y', color=pie_col, orientation='h', color_discrete_sequence=px.colors.qualitative.Pastel)
             fig_stack.update_traces(
-                texttemplate='%{x:.1%}', textposition='inside', insidetextanchor='middle', 
-                marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.9 # Efecto Botón 3D
+                texttemplate='<b>%{x:.1%}</b>', textposition='inside', insidetextanchor='middle', 
+                marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.9,
+                textfont=dict(color='black', size=11, family="Arial")
             )
             fig_stack.update_layout(
-                barmode='stack', title=dict(text="PROPORCIÓN DE PÉRDIDAS MACRO (100%)", font=dict(family="Times", size=13, color=theme_hex)), 
+                barmode='stack', 
+                title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS MACRO (100%)</b>", font=dict(family="Arial", size=12, color="black")), 
                 xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), 
-                margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)')
+                margin=dict(t=30, b=5, l=10, r=10), 
+                legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10, color="black")), 
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
             
             img_stack = save_chart(fig_stack, w=600, h=180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
 
@@ -299,7 +304,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 # ==========================================
 # 4. MOTOR: INFORME PRODUCTIVO (CALIDAD)
 # ==========================================
-def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel):
+def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel, hs_rt):
     theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0)
     theme_hex = '#%02x%02x%02x' % theme_color
     grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
@@ -350,22 +355,27 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
-        # Gráficos con Efecto "Botón 3D" (Borde y opacidad)
-        f1 = px.bar(df_ev, x='Mes_Str', y='Totales', text_auto='.3s')
-        f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap')
-        f2.update_traces(texttemplate='%{y:.2f}%')
-        f3 = px.bar(df_ev, x='Mes_Str', y='% RT')
-        f3.update_traces(texttemplate='%{y:.2f}%')
+        # Gráficos con Efecto Botón 3D y Letras Negras Negrita
+        f1 = px.bar(df_ev, x='Mes_Str', y='Totales', color_discrete_sequence=[theme_hex])
+        f1.update_traces(texttemplate='<b>%{y:.3s}</b>')
+        
+        f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap', color_discrete_sequence=[theme_hex])
+        f2.update_traces(texttemplate='<b>%{y:.2f}%</b>')
+        
+        f3 = px.bar(df_ev, x='Mes_Str', y='% RT', color_discrete_sequence=[theme_hex])
+        f3.update_traces(texttemplate='<b>%{y:.2f}%</b>')
         
         titles = ["PIEZAS PRODUCIDAS MES A MES", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
         for i, f in enumerate([f1, f2, f3]): 
-            # Multiplicador para dejar espacio arriba (headroom)
             max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
-            f.update_yaxes(range=[0, max_y * 1.3])
-            f.update_layout(title=dict(text=titles[i], font=dict(family="Times", size=13, color=theme_hex)), margin=dict(l=10, r=10, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
+            upper_limit = max_y * 1.3 if max_y > 0 else 1
+            f.update_yaxes(range=[0, upper_limit])
+            f.update_layout(
+                title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Arial", size=12, color="black")), 
+                margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
             f.update_traces(
-                textposition="outside", cliponaxis=False, textfont_size=12, 
-                marker_color=theme_hex, marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85 # Efecto Botón 3D
+                textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), 
+                marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85
             )
 
         pdf.set_draw_color(180, 180, 180)
@@ -379,30 +389,48 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         i3 = save_chart(f3, w=550, h=260); pdf.image(i3, 11, 149, w=133, h=h_box_left-2); os.remove(i3)
 
         # --- DERECHA: PARETO TOP PIEZAS ---
-        h_box_right = 91.5
+        h_box_right = 83.5
         pdf.rounded_rect(150, 22, 135, h_box_right, r=3, style='D')
-        pdf.rounded_rect(150, 116.5, 135, h_box_right, r=3, style='D')
+        pdf.rounded_rect(150, 108.5, 135, h_box_right, r=3, style='D')
         
         if not df_p_target.empty:
             t_s = df_p_target.groupby('Pieza')['Scrap'].sum().nlargest(5).reset_index().sort_values('Scrap', ascending=True)
             t_rt = df_p_target.groupby('Pieza')['RT'].sum().nlargest(5).reset_index().sort_values('RT', ascending=True)
             
-            f4 = px.bar(t_s, x='Scrap', y='Pieza', orientation='h')
-            f5 = px.bar(t_rt, x='RT', y='Pieza', orientation='h')
+            f4 = px.bar(t_s, x='Scrap', y='Pieza', orientation='h', color_discrete_sequence=[theme_hex])
+            f5 = px.bar(t_rt, x='RT', y='Pieza', orientation='h', color_discrete_sequence=[theme_hex])
             
             titles_right = ["TOP 5 SCRAP POR PIEZA", "TOP 5 RT POR PIEZA"]
             for i, f in enumerate([f4, f5]):
                 max_x = t_s['Scrap'].max() if i==0 else t_rt['RT'].max()
-                f.update_xaxes(range=[0, max_x * 1.3])
-                f.update_layout(title=dict(text=titles_right[i], font=dict(family="Times", size=13, color=theme_hex)), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True))
-                # Texto adentro centrado (nombre de la pieza ya está en el eje Y, acá la cantidad en el extremo de la barra)
+                upper_limit = max_x * 1.3 if max_x > 0 else 1
+                f.update_xaxes(range=[0, upper_limit])
+                f.update_layout(
+                    title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Arial", size=12, color="black")), 
+                    margin=dict(l=10, r=30, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), 
+                    yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(
-                    texttemplate='%{x}', textposition="outside", cliponaxis=False, textfont_size=12, 
-                    marker_color=theme_hex, marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85 # Efecto Botón 3D
+                    texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), 
+                    marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85
                 )
 
-            i4 = save_chart(f4, w=550, h=380); pdf.image(i4, 151, 23, w=133, h=h_box_right-2); os.remove(i4)
-            i5 = save_chart(f5, w=550, h=380); pdf.image(i5, 151, 117.5, w=133, h=h_box_right-2); os.remove(i5)
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h=h_box_right-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h=h_box_right-2); os.remove(i5)
+
+        # --- DERECHA ABAJO: RECUADRO HS DE RT (MANUAL) ---
+        y_hs = 196
+        pdf.set_fill_color(240, 240, 240)
+        pdf.set_draw_color(180, 180, 180)
+        pdf.rounded_rect(150, y_hs, 135, 12, r=2, style='DF')
+        
+        pdf.set_xy(150, y_hs)
+        pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0)
+        pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
+        
+        pdf.set_fill_color(200, 200, 200)
+        pdf.rounded_rect(217.5, y_hs, 67.5, 12, r=2, style='DF')
+        pdf.set_xy(217.5, y_hs)
+        pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1')
 
@@ -447,8 +475,11 @@ with col_fecha:
 # Cargar Datos
 df_metrics, df_raw, df_trend, df_piezas = fetch_data_from_db(ini, fin, mes_sel, anio_sel)
 
+st.write("### 2. Datos Manuales (Informe Productivo)")
+hs_rt = st.number_input("Ingrese las Horas de RT (Hs):", min_value=0.0, value=0.0, step=1.0)
+
 st.divider()
-st.write("### 2. Descargar Reportes")
+st.write("### 3. Descargar Reportes")
 
 col_disp, col_prod = st.columns(2)
 
@@ -470,10 +501,10 @@ with col_prod:
     st.write("Tendencia mensual, % de Scrap, RT y Pareto de piezas.")
     if st.button("Descargar Productivo ESTAMPADO", use_container_width=True):
         with st.spinner("Generando..."):
-            pdf = crear_pdf_informe_productivo("Estampado", label_periodo, df_trend, df_piezas, mes_sel, anio_sel)
+            pdf = crear_pdf_informe_productivo("Estampado", label_periodo, df_trend, df_piezas, mes_sel, anio_sel, hs_rt)
             st.download_button("📥 Bajar PDF Estampado", pdf, "Productivo_Estampado.pdf", use_container_width=True)
 
     if st.button("Descargar Productivo SOLDADURA", use_container_width=True):
         with st.spinner("Generando..."):
-            pdf = crear_pdf_informe_productivo("Soldadura", label_periodo, df_trend, df_piezas, mes_sel, anio_sel)
+            pdf = crear_pdf_informe_productivo("Soldadura", label_periodo, df_trend, df_piezas, mes_sel, anio_sel, hs_rt)
             st.download_button("📥 Bajar PDF Soldadura", pdf, "Productivo_Soldadura.pdf", use_container_width=True)
