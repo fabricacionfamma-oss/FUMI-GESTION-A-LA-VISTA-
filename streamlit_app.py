@@ -42,9 +42,7 @@ class ReportePDF(FPDF):
         self.theme_color = theme_color
 
     def rounded_rect(self, x, y, w, h, r, style=''):
-        """Función matemática para dibujar recuadros con bordes redondeados nativos en PDF"""
-        k = self.k
-        hp = self.h
+        k = self.k; hp = self.h
         op = 'f' if style == 'F' else 'B' if style in ['FD', 'DF'] else 'S'
         MyArc = 4/3 * ((2 ** 0.5) - 1)
         self._out(f'{(x + r) * k:.2f} {(hp - y) * k:.2f} m')
@@ -69,7 +67,7 @@ def clean_text(text):
 def save_chart(fig, w=600, h=300):
     fig.update_layout(width=w, height=h)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        fig.write_image(tmp.name, engine="kaleido", scale=2.0)
+        fig.write_image(tmp.name, engine="kaleido", scale=2.5) 
         return tmp.name
 
 # ==========================================
@@ -82,11 +80,8 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         ini_str = fecha_ini.strftime('%Y-%m-%d'); fin_str = fecha_fin.strftime('%Y-%m-%d')
 
         q_metrics = f"SELECT c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, (SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)) as PERFORMANCE, (SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as DISPONIBILIDAD, (SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)) as CALIDAD, (SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
-        
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
-        
         q_trend = f"SELECT p.Month, c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.Good + p.Rework + p.Scrap) as Totales, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, SUM(p.ProductiveTime + p.DownTime) as T_Planificado, SUM(p.Performance * p.ProductiveTime) as Perf_Num, SUM(p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, SUM(p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(p.Scrap) as Scrap, SUM(p.Rework) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
         df_metrics = conn.query(q_metrics)
@@ -118,7 +113,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
 
             df_raw['Estado_Global'] = df_raw.apply(categorizar_estado, axis=1)
             df_raw['Categoria_Macro'] = df_raw.apply(clasificar_macro, axis=1)
-            # El "Detalle_Final" ahora extrae la falla específica (ej: Falla Eléctrica)
             df_raw['Detalle_Final'] = df_raw.apply(obtener_ultimo_nivel, axis=1)
 
         return df_metrics, df_raw, df_trend, df_piezas
@@ -178,7 +172,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C')
         pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C')
 
-        # --- KPIs CON RECICLADO ROUNDED ---
+        # --- KPIs SUPERIORES ---
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
         
@@ -198,7 +192,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{val*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
-        # --- Gráficos Semáforo Evolución ---
+        # --- GRÁFICOS BARRAS SEMÁFORO CON EFECTO 3D/BOTÓN ---
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
             if df_in.empty: return
             
@@ -220,28 +214,34 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
             df_g['Mes_Str'] = df_g['Month'].map(meses_map)
             
-            # Semáforo para cada barra
+            # Semáforo de Colores
             def get_color(v):
                 if v < 0.75: return '#E74C3C' 
                 elif v <= 0.85: return '#F1C40F'
                 else: return '#2ECC71' 
             df_g['Color'] = df_g['Val'].apply(get_color)
             
+            max_y = df_g['Val'].max() if not df_g.empty else 1
+            upper_limit = max(1.1, max_y * 1.3)
+
             fig = go.Figure(data=[go.Bar(
                 x=df_g['Mes_Str'], y=df_g['Val'], 
-                marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.5)', width=1.5)), 
-                text=df_g['Val'], texttemplate='%{text:.1%}', textposition='outside'
+                marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.6)', width=1.5)), # Borde 3D
+                text=df_g['Val'], texttemplate='%{text:.1%}', textposition='outside', opacity=0.85 # Opacidad efecto botón
             )])
             
             fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="75%")
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="85%")
             
-            fig.update_layout(title=dict(text=title, font=dict(size=12)), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, 1.15], visible=False), xaxis_title="")
+            fig.update_layout(
+                title=dict(text=title, font=dict(family="Times", size=13, color=theme_hex)), # Fuente estilizada Times New Roman
+                margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', 
+                yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title=""
+            )
             fig.update_traces(textfont_size=11, cliponaxis=False)
             
             img = save_chart(fig, w=600, h=220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
-        # Marcos Redondeados
         pdf.set_draw_color(180, 180, 180)
         pdf.rounded_rect(10, 48, 136, 52, r=3, style='D')
         pdf.rounded_rect(149, 48, 138, 52, r=3, style='D')
@@ -253,16 +253,17 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102)
         add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102)
 
-        # --- Top Fallos Particulares y Barra Horizontal 100% ---
+        # --- Top Fallos (Particular) y Barra Horizontal 100% ---
         pdf.rounded_rect(10, 156, 136, 45, r=3, style='D')
         pdf.rounded_rect(149, 156, 138, 45, r=3, style='D')
-        pdf.set_xy(10, 156); pdf.set_font("Arial", 'B', 10)
-        pdf.cell(136, 6, "TOP 5 FALLOS", border='B', ln=True, align='C')
+        
+        # Título Estilizado
+        pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(*theme_color)
+        pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
         
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
             t_total = df_f['Tiempo (Min)'].sum()
-            # Top 5 extrae la falla específica
             top5 = df_f.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
             
             pdf.set_xy(10, 162); pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(*theme_color); pdf.set_text_color(255)
@@ -274,15 +275,21 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C')
                 pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True)
 
-            # Barra Apilada 100% extrae la familia MACRO
+            # Barra Apilada 100%
             df_pie = df_f.groupby(pie_col)['Tiempo (Min)'].sum().reset_index()
             df_pie['Porcentaje'] = df_pie['Tiempo (Min)'] / t_total
             df_pie['Y'] = "Pérdidas"
             df_pie = df_pie.sort_values('Tiempo (Min)', ascending=False)
             
             fig_stack = px.bar(df_pie, x='Porcentaje', y='Y', color=pie_col, orientation='h', color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_stack.update_traces(texttemplate='%{x:.1%}', textposition='inside', insidetextanchor='middle', marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
-            fig_stack.update_layout(barmode='stack', title=dict(text="PROPORCIÓN DE PÉRDIDAS MACRO (100%)", font=dict(size=12)), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)')
+            fig_stack.update_traces(
+                texttemplate='%{x:.1%}', textposition='inside', insidetextanchor='middle', 
+                marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.9 # Efecto Botón 3D
+            )
+            fig_stack.update_layout(
+                barmode='stack', title=dict(text="PROPORCIÓN DE PÉRDIDAS MACRO (100%)", font=dict(family="Times", size=13, color=theme_hex)), 
+                xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), 
+                margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)')
             
             img_stack = save_chart(fig_stack, w=600, h=180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
 
@@ -334,7 +341,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         if df_t_target.empty:
             continue
 
-        # --- Izquierda: Evolución Mensual ---
+        # --- IZQUIERDA: EVOLUCIÓN MENSUAL ---
         df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum().reset_index()
         df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
         df_ev['% Scrap'] = (df_ev['Observadas'] / df_ev['Totales_Div']) * 100
@@ -343,45 +350,59 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
-        f1 = px.bar(df_ev, x='Mes_Str', y='Totales', title="PIEZAS PRODUCIDAS MES A MES", text_auto='.3s', color_discrete_sequence=[theme_hex])
-        # Formato 2 decimales para porcentajes
-        f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap', title="% DE SCRAP MES A MES", color_discrete_sequence=[theme_hex])
+        # Gráficos con Efecto "Botón 3D" (Borde y opacidad)
+        f1 = px.bar(df_ev, x='Mes_Str', y='Totales', text_auto='.3s')
+        f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap')
         f2.update_traces(texttemplate='%{y:.2f}%')
-        f3 = px.bar(df_ev, x='Mes_Str', y='% RT', title="% DE RT MES A MES", color_discrete_sequence=[theme_hex])
+        f3 = px.bar(df_ev, x='Mes_Str', y='% RT')
         f3.update_traces(texttemplate='%{y:.2f}%')
         
-        for f in [f1, f2, f3]: 
-            f.update_layout(title_font_size=12, margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
-            f.update_traces(textposition="outside", cliponaxis=False, textfont_size=11, marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1.5)
+        titles = ["PIEZAS PRODUCIDAS MES A MES", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
+        for i, f in enumerate([f1, f2, f3]): 
+            # Multiplicador para dejar espacio arriba (headroom)
+            max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
+            f.update_yaxes(range=[0, max_y * 1.3])
+            f.update_layout(title=dict(text=titles[i], font=dict(family="Times", size=13, color=theme_hex)), margin=dict(l=10, r=10, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
+            f.update_traces(
+                textposition="outside", cliponaxis=False, textfont_size=12, 
+                marker_color=theme_hex, marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85 # Efecto Botón 3D
+            )
 
         pdf.set_draw_color(180, 180, 180)
-        # Rediseño de Layout (Sin KPIs Superiores)
-        pdf.rounded_rect(10, 22, 135, 58, r=3, style='D')
-        pdf.rounded_rect(10, 85, 135, 58, r=3, style='D')
-        pdf.rounded_rect(10, 148, 135, 58, r=3, style='D')
+        h_box_left = 60
+        pdf.rounded_rect(10, 22, 135, h_box_left, r=3, style='D')
+        pdf.rounded_rect(10, 85, 135, h_box_left, r=3, style='D')
+        pdf.rounded_rect(10, 148, 135, h_box_left, r=3, style='D')
         
-        i1 = save_chart(f1, w=500, h=240); pdf.image(i1, 12, 24, 131); os.remove(i1)
-        i2 = save_chart(f2, w=500, h=240); pdf.image(i2, 12, 87, 131); os.remove(i2)
-        i3 = save_chart(f3, w=500, h=240); pdf.image(i3, 12, 150, 131); os.remove(i3)
+        i1 = save_chart(f1, w=550, h=260); pdf.image(i1, 11, 23, w=133, h=h_box_left-2); os.remove(i1)
+        i2 = save_chart(f2, w=550, h=260); pdf.image(i2, 11, 86, w=133, h=h_box_left-2); os.remove(i2)
+        i3 = save_chart(f3, w=550, h=260); pdf.image(i3, 11, 149, w=133, h=h_box_left-2); os.remove(i3)
 
-        # --- Derecha: Pareto Top Piezas ---
-        pdf.rounded_rect(150, 22, 135, 90, r=3, style='D')
-        pdf.rounded_rect(150, 116, 135, 90, r=3, style='D')
+        # --- DERECHA: PARETO TOP PIEZAS ---
+        h_box_right = 91.5
+        pdf.rounded_rect(150, 22, 135, h_box_right, r=3, style='D')
+        pdf.rounded_rect(150, 116.5, 135, h_box_right, r=3, style='D')
         
         if not df_p_target.empty:
             t_s = df_p_target.groupby('Pieza')['Scrap'].sum().nlargest(5).reset_index().sort_values('Scrap', ascending=True)
             t_rt = df_p_target.groupby('Pieza')['RT'].sum().nlargest(5).reset_index().sort_values('RT', ascending=True)
             
-            f4 = px.bar(t_s, x='Scrap', y='Pieza', orientation='h', title="TOP 5 SCRAP POR PIEZA", color_discrete_sequence=[theme_hex])
-            f5 = px.bar(t_rt, x='RT', y='Pieza', orientation='h', title="TOP 5 RT POR PIEZA", color_discrete_sequence=[theme_hex])
+            f4 = px.bar(t_s, x='Scrap', y='Pieza', orientation='h')
+            f5 = px.bar(t_rt, x='RT', y='Pieza', orientation='h')
             
-            for f in [f4, f5]: 
-                f.update_layout(title_font_size=12, margin=dict(l=10, r=20, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis_title="")
-                # Text Position inside para que quede SOBRE la barra
-                f.update_traces(texttemplate='%{x}', textposition="inside", insidetextanchor='middle', textfont_size=11, marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1.5)
+            titles_right = ["TOP 5 SCRAP POR PIEZA", "TOP 5 RT POR PIEZA"]
+            for i, f in enumerate([f4, f5]):
+                max_x = t_s['Scrap'].max() if i==0 else t_rt['RT'].max()
+                f.update_xaxes(range=[0, max_x * 1.3])
+                f.update_layout(title=dict(text=titles_right[i], font=dict(family="Times", size=13, color=theme_hex)), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True))
+                # Texto adentro centrado (nombre de la pieza ya está en el eje Y, acá la cantidad en el extremo de la barra)
+                f.update_traces(
+                    texttemplate='%{x}', textposition="outside", cliponaxis=False, textfont_size=12, 
+                    marker_color=theme_hex, marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85 # Efecto Botón 3D
+                )
 
-            i4 = save_chart(f4, w=500, h=330); pdf.image(i4, 152, 24, 131); os.remove(i4)
-            i5 = save_chart(f5, w=500, h=330); pdf.image(i5, 152, 118, 131); os.remove(i5)
+            i4 = save_chart(f4, w=550, h=380); pdf.image(i4, 151, 23, w=133, h=h_box_right-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=380); pdf.image(i5, 151, 117.5, w=133, h=h_box_right-2); os.remove(i5)
 
     return pdf.output(dest='S').encode('latin-1')
 
