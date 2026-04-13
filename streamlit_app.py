@@ -41,6 +41,16 @@ class ReportePDF(FPDF):
         self.fecha_str = fecha_str
         self.theme_color = theme_color
 
+    def add_gradient_background(self):
+        r1, g1, b1 = 240, 242, 246
+        r2, g2, b2 = 215, 220, 225
+        h = self.h; w = self.w
+        for i in range(int(h * 2)):
+            ratio = i / (h * 2)
+            r = int(r1 + (r2 - r1) * ratio); g = int(g1 + (g2 - g1) * ratio); b = int(b1 + (b2 - b1) * ratio)
+            self.set_fill_color(r, g, b)
+            self.rect(0, i / 2, w, 0.5, 'F')
+
     def rounded_rect(self, x, y, w, h, r, style=''):
         k = self.k; hp = self.h
         op = 'f' if style == 'F' else 'B' if style in ['FD', 'DF'] else 'S'
@@ -59,6 +69,21 @@ class ReportePDF(FPDF):
         self._out(f'{x * k:.2f} {(hp - yc) * k:.2f} l')
         self._out(f'{x * k:.2f} {(hp - yc + r * MyArc) * k:.2f} {(xc - r * MyArc) * k:.2f} {(hp - y) * k:.2f} {xc * k:.2f} {(hp - y) * k:.2f} c')
         self._out(op)
+
+    def draw_panel(self, x, y, w, h, r=3, bg_color=(255,255,255), border_color=(180,180,180)):
+        """Dibuja un panel con sombra 3D (Drop Shadow)"""
+        self.set_fill_color(210, 210, 210) # Sombra Gris Oscura
+        self.rounded_rect(x + 1.5, y + 1.5, w, h, r, style='F')
+        self.set_fill_color(*bg_color)
+        self.set_draw_color(*border_color)
+        self.rounded_rect(x, y, w, h, r, style='DF')
+
+    def draw_kpi_panel(self, x, y, w, h, r=3):
+        """Dibuja un panel de KPI con el color del tema y sombra"""
+        self.set_fill_color(200, 200, 200) # Sombra
+        self.rounded_rect(x + 1.5, y + 1.5, w, h, r, style='F')
+        self.set_fill_color(*self.theme_color)
+        self.rounded_rect(x, y, w, h, r, style='F')
 
 def clean_text(text):
     if pd.isna(text): return "-"
@@ -155,6 +180,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     for target in paginas:
         pdf.add_page(orientation='L')
         pdf.set_auto_page_break(False) 
+        pdf.add_gradient_background()
         
         df_m_target = df_m if target == 'GENERAL' else df_m[df_m['Grupo'] == target]
         df_t_target = df_t if target == 'GENERAL' else df_t[df_t['Grupo'] == target]
@@ -167,12 +193,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.cell(40, 6, "PERIODO", 1, 0, 'C', fill=True)
         pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True)
         pdf.cell(40, 6, "INFORME", 1, 1, 'C', fill=True)
-        pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
-        pdf.cell(40, 6, label_reporte, 1, 0, 'C')
-        pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C')
-        pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C')
+        pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
+        pdf.cell(40, 6, label_reporte, 1, 0, 'C', fill=True)
+        pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True)
+        pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C', fill=True)
 
-        # --- KPIs SUPERIORES ---
+        # --- KPIs SUPERIORES (Sombra Integrada) ---
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
         
@@ -186,13 +212,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         y_kpi = 25
         for i, (lbl, val) in enumerate(kpis.items()):
             x = 10 + (i * 68.5)
-            pdf.set_fill_color(*theme_color)
-            pdf.rounded_rect(x, y_kpi, 65, 20, r=3, style='F')
+            pdf.draw_kpi_panel(x, y_kpi, 65, 20)
             pdf.set_xy(x, y_kpi + 2); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(255); pdf.cell(65, 6, lbl, 0, 1, 'L')
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{val*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
-        # --- GRÁFICOS BARRAS SEMÁFORO ---
+        # --- GRÁFICOS BARRAS SEMÁFORO (CON EFECTO 3D) ---
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
             if df_in.empty: return
             
@@ -225,57 +250,57 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
             fig = go.Figure(data=[go.Bar(
                 x=df_g['Mes_Str'], y=df_g['Val'], 
-                marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.6)', width=1.5)), 
-                text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.9 
+                marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.8)', width=2)), # Borde Fuerte 3D
+                text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.85 
             )])
             
             fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="<b>75%</b>", annotation_font_color='black')
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
             
-            # Titulos negros y negrita (HTML <b>)
             fig.update_layout(
-                title=dict(text=f"<b>{title}</b>", font=dict(family="Arial", size=12, color="black")), 
-                margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', 
+                title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), 
+                margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', 
                 yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title=""
             )
-            # Etiquetas negras y negrita
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
             
             img = save_chart(fig, w=600, h=220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
-        pdf.set_draw_color(180, 180, 180)
-        pdf.rounded_rect(10, 48, 136, 52, r=3, style='D')
-        pdf.rounded_rect(149, 48, 138, 52, r=3, style='D')
+        pdf.draw_panel(10, 48, 136, 52)
+        pdf.draw_panel(149, 48, 138, 52)
         add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48)
         add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48)
 
-        pdf.rounded_rect(10, 102, 136, 52, r=3, style='D')
-        pdf.rounded_rect(149, 102, 138, 52, r=3, style='D')
+        pdf.draw_panel(10, 102, 136, 52)
+        pdf.draw_panel(149, 102, 138, 52)
         add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102)
         add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102)
 
-        # --- Top Fallos (Particular) y Barra Horizontal 100% ---
-        pdf.rounded_rect(10, 156, 136, 45, r=3, style='D')
-        pdf.rounded_rect(149, 156, 138, 45, r=3, style='D')
+        # --- Top Fallos (Excluye Baño/Refrigerio) ---
+        pdf.draw_panel(10, 156, 136, 45)
+        pdf.draw_panel(149, 156, 138, 45)
         
-        pdf.set_xy(10, 156); pdf.set_font("Arial", 'B', 11); pdf.set_text_color(0)
+        pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0)
         pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
         
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
             t_total = df_f['Tiempo (Min)'].sum()
-            top5 = df_f.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
+            
+            # FILTRO: Excluir Baño y Refrigerio del Top 5
+            df_f_puras = df_f[~df_f['Detalle_Final'].str.upper().str.contains('BAÑO|BANO|REFRIGERIO|DESCANSO', na=False)]
+            top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
             
             pdf.set_xy(10, 162); pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(*theme_color); pdf.set_text_color(255)
             pdf.cell(76, 5, "FALLO", border=1, fill=True); pdf.cell(30, 5, "MINUTOS", border=1, align='C', fill=True); pdf.cell(30, 5, "% TOTAL", border=1, align='C', ln=True, fill=True)
-            pdf.set_font("Arial", '', 8); pdf.set_text_color(0)
             
+            pdf.set_font("Arial", '', 8); pdf.set_text_color(0); pdf.set_fill_color(255, 255, 255)
             for _, r in top5.iterrows():
-                pdf.set_x(10); pdf.cell(76, 6, clean_text(str(r['Detalle_Final']))[:45], border=1)
-                pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C')
-                pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True)
+                pdf.set_x(10); pdf.cell(76, 6, clean_text(str(r['Detalle_Final']))[:45], border=1, fill=True)
+                pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
+                pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
 
-            # Barra Apilada 100%
+            # Barra Apilada 100% (Sí incluye baño/refrigerio porque es nivel Macro)
             df_pie = df_f.groupby(pie_col)['Tiempo (Min)'].sum().reset_index()
             df_pie['Porcentaje'] = df_pie['Tiempo (Min)'] / t_total
             df_pie['Y'] = "Pérdidas"
@@ -284,16 +309,16 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig_stack = px.bar(df_pie, x='Porcentaje', y='Y', color=pie_col, orientation='h', color_discrete_sequence=px.colors.qualitative.Pastel)
             fig_stack.update_traces(
                 texttemplate='<b>%{x:.1%}</b>', textposition='inside', insidetextanchor='middle', 
-                marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.9,
+                marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9,
                 textfont=dict(color='black', size=11, family="Arial")
             )
             fig_stack.update_layout(
                 barmode='stack', 
-                title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS MACRO (100%)</b>", font=dict(family="Arial", size=12, color="black")), 
+                title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), 
                 xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), 
                 margin=dict(t=30, b=5, l=10, r=10), 
                 legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10, color="black")), 
-                plot_bgcolor='rgba(0,0,0,0)'
+                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
             )
             
             img_stack = save_chart(fig_stack, w=600, h=180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
@@ -327,21 +352,22 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     for target in paginas:
         pdf.add_page(orientation='L')
         pdf.set_auto_page_break(False) 
+        pdf.add_gradient_background()
         
         df_t_target = df_t if target == 'GENERAL' else df_t[df_t['Grupo'] == target]
         df_p_target = df_p if target == 'GENERAL' else df_p[df_p['Grupo'] == target]
 
-        # --- ENCABEZADO FORMATO EXCEL ---
+        # --- ENCABEZADO ---
         pdf.set_y(10)
         pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(20, 6, "MES", 1, 0, 'C', fill=True); pdf.cell(20, 6, "AÑO", 1, 0, 'C', fill=True)
         pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True)
         pdf.cell(40, 6, "AREA", 1, 1, 'C', fill=True)
         
-        pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
-        pdf.cell(20, 6, str(mes_sel), 1, 0, 'C'); pdf.cell(20, 6, str(anio_sel), 1, 0, 'C')
-        pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C')
-        pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "PRODUCTIVO", 1, 1, 'C')
+        pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
+        pdf.cell(20, 6, str(mes_sel), 1, 0, 'C', fill=True); pdf.cell(20, 6, str(anio_sel), 1, 0, 'C', fill=True)
+        pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True)
+        pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "PRODUCTIVO", 1, 1, 'C', fill=True)
 
         if df_t_target.empty:
             continue
@@ -355,13 +381,10 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
-        # Gráficos con Efecto Botón 3D y Letras Negras Negrita
         f1 = px.bar(df_ev, x='Mes_Str', y='Totales', color_discrete_sequence=[theme_hex])
         f1.update_traces(texttemplate='<b>%{y:.3s}</b>')
-        
         f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap', color_discrete_sequence=[theme_hex])
         f2.update_traces(texttemplate='<b>%{y:.2f}%</b>')
-        
         f3 = px.bar(df_ev, x='Mes_Str', y='% RT', color_discrete_sequence=[theme_hex])
         f3.update_traces(texttemplate='<b>%{y:.2f}%</b>')
         
@@ -371,18 +394,19 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             upper_limit = max_y * 1.3 if max_y > 0 else 1
             f.update_yaxes(range=[0, upper_limit])
             f.update_layout(
-                title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Arial", size=12, color="black")), 
-                margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
+                title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), 
+                margin=dict(l=10, r=10, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', 
+                xaxis_title="", yaxis=dict(visible=False)
+            )
             f.update_traces(
                 textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), 
-                marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85
+                marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85
             )
 
-        pdf.set_draw_color(180, 180, 180)
         h_box_left = 60
-        pdf.rounded_rect(10, 22, 135, h_box_left, r=3, style='D')
-        pdf.rounded_rect(10, 85, 135, h_box_left, r=3, style='D')
-        pdf.rounded_rect(10, 148, 135, h_box_left, r=3, style='D')
+        pdf.draw_panel(10, 22, 135, h_box_left)
+        pdf.draw_panel(10, 85, 135, h_box_left)
+        pdf.draw_panel(10, 148, 135, h_box_left)
         
         i1 = save_chart(f1, w=550, h=260); pdf.image(i1, 11, 23, w=133, h=h_box_left-2); os.remove(i1)
         i2 = save_chart(f2, w=550, h=260); pdf.image(i2, 11, 86, w=133, h=h_box_left-2); os.remove(i2)
@@ -390,8 +414,8 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
         # --- DERECHA: PARETO TOP PIEZAS ---
         h_box_right = 83.5
-        pdf.rounded_rect(150, 22, 135, h_box_right, r=3, style='D')
-        pdf.rounded_rect(150, 108.5, 135, h_box_right, r=3, style='D')
+        pdf.draw_panel(150, 22, 135, h_box_right)
+        pdf.draw_panel(150, 108.5, 135, h_box_right)
         
         if not df_p_target.empty:
             t_s = df_p_target.groupby('Pieza')['Scrap'].sum().nlargest(5).reset_index().sort_values('Scrap', ascending=True)
@@ -406,31 +430,26 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
                 upper_limit = max_x * 1.3 if max_x > 0 else 1
                 f.update_xaxes(range=[0, upper_limit])
                 f.update_layout(
-                    title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Arial", size=12, color="black")), 
-                    margin=dict(l=10, r=30, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), 
-                    yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
+                    title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), 
+                    margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', 
+                    xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10))
+                )
                 f.update_traces(
                     texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), 
-                    marker_line_color='rgba(0,0,0,0.6)', marker_line_width=1.5, opacity=0.85
+                    marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85
                 )
 
             i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h=h_box_right-2); os.remove(i4)
             i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h=h_box_right-2); os.remove(i5)
 
-        # --- DERECHA ABAJO: RECUADRO HS DE RT (MANUAL) ---
+        # --- DERECHA ABAJO: RECUADRO HS DE RT ---
         y_hs = 196
-        pdf.set_fill_color(240, 240, 240)
-        pdf.set_draw_color(180, 180, 180)
-        pdf.rounded_rect(150, y_hs, 135, 12, r=2, style='DF')
-        
-        pdf.set_xy(150, y_hs)
-        pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0)
+        pdf.draw_panel(150, y_hs, 135, 12, r=2, bg_color=(240,240,240))
+        pdf.set_xy(150, y_hs); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0)
         pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         
-        pdf.set_fill_color(200, 200, 200)
-        pdf.rounded_rect(217.5, y_hs, 67.5, 12, r=2, style='DF')
-        pdf.set_xy(217.5, y_hs)
-        pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
+        pdf.draw_panel(217.5, y_hs, 67.5, 12, r=2, bg_color=(255,255,255))
+        pdf.set_xy(217.5, y_hs); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1')
 
