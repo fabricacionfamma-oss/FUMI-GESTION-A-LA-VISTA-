@@ -89,7 +89,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (NUEVO MOTOR PANDAS)
+# 2. CARGA DE DATOS
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -98,15 +98,12 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
-        # Para los gráficos, extraemos desde el 1 de Enero del año actual hasta hoy, EN FORMATO DIARIO
         ini_year_str = f"{anio}-01-01 00:00:00"
         
-        # 1. Extracción de Datos
         q_metrics = f"SELECT c.Name as Máquina, COALESCE(SUM(p.Good), 0) as Buenas, COALESCE(SUM(p.Rework), 0) as Retrabajo, COALESCE(SUM(p.Scrap), 0) as Observadas, COALESCE(SUM(p.ProductiveTime), 0) as T_Operativo, COALESCE(SUM(p.DownTime), 0) as T_Parada, COALESCE((SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)), 0) as PERFORMANCE, COALESCE((SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as DISPONIBILIDAD, COALESCE((SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)), 0) as CALIDAD, COALESCE((SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
-        # TENDENCIAS: Se usan las tablas DIARIAS (PROD_D_03) para evitar los nulos de PROD_M_03
         q_trend_oee_daily = f"SELECT p.Date, c.Name as Máquina, p.ProductiveTime as T_Operativo, p.DownTime as T_Parada, (p.ProductiveTime + p.DownTime) as T_Planificado, (p.Performance * p.ProductiveTime) as Perf_Num, (p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, (p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, (p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_year_str}' AND '{fin_str}'"
         q_trend_piezas_daily = f"SELECT p.Date, c.Name as Máquina, p.Good as Buenas, p.Rework as Retrabajo, p.Scrap as Observadas, (p.Good + p.Rework + p.Scrap) as Totales FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_year_str}' AND '{fin_str}'"
 
@@ -116,7 +113,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_t_oee_raw = conn.query(q_trend_oee_daily)
         df_t_pz_raw = conn.query(q_trend_piezas_daily)
 
-        # 2. Agrupación segura de tendencias mensuales por Python (Imposible que devuelva gráficos vacíos si hay datos diarios)
         df_trend_oee = pd.DataFrame()
         if not df_t_oee_raw.empty:
             df_t_oee_raw['Date'] = pd.to_datetime(df_t_oee_raw['Date'])
@@ -140,7 +136,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
-        # 3. Procesamiento de Fallas (Mantiene la perfección del Nivel 4 y Gestión)
         if df_raw.empty: 
             df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
@@ -202,8 +197,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     for d in [df_m, df_t, df_r]: 
         if not d.empty and 'Máquina' in d.columns:
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
-        else:
-            d['Grupo'] = 'Otro'
+        else: d['Grupo'] = 'Otro'
             
     df_m = df_m[df_m['Grupo'].isin(grupos_area)]; df_t = df_t[df_t['Grupo'].isin(grupos_area)]; df_r = df_r[df_r['Grupo'].isin(grupos_area)]
     paginas = ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
@@ -229,11 +223,14 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{val*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
+        # GENERADOR GRÁFICOS: Ya no pregunta por columnas falsas.
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
-            if df_in.empty or (col not in df_in.columns and col+'_Num' not in df_in.columns): return
+            if df_in.empty: return
             
             df_g = df_in.groupby('Month').sum(numeric_only=True).reset_index()
+            if 'Month' in df_g.columns: df_g['Month'] = df_g['Month'].astype(int)
             
+            # Se usan los nombres exactos que vienen de la base de datos SQL.
             if col == 'OEE' and 'OEE_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
             elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns: 
@@ -242,7 +239,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
             elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r.get('Totales', 0) > 0 else 0, axis=1)
-            else: return
+            else: return # Previene crasheos si el mes no tuvo actividad.
             
             if df_g['Val'].max() > 1.5: df_g['Val'] /= 100.0
             
@@ -258,7 +255,10 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
             fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
-            img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
+            
+            img = save_chart(fig, w=600, h=220)
+            pdf.image(img, x=x_pos+2, y=y_pos+2, w=132)
+            os.remove(img)
 
         pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
         add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48)
@@ -271,7 +271,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
         
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
-        
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
             excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
             mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
@@ -296,7 +295,10 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
             fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
             fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
-            img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
+            
+            img_stack = save_chart(fig_stack, w=600, h=180)
+            pdf.image(img_stack, x=151, y=158, w=134)
+            os.remove(img_stack)
             
     return pdf.output(dest='S').encode('latin-1')
 
@@ -318,9 +320,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
         else: d['Grupo'] = 'Otro'
 
-    df_t = df_t[df_t['Grupo'].isin(grupos)]
-    df_p = df_p[df_p['Grupo'].isin(grupos)]
-
+    df_t = df_t[df_t['Grupo'].isin(grupos)]; df_p = df_p[df_p['Grupo'].isin(grupos)]
     paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
 
     for target in paginas:
@@ -358,9 +358,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
         h_box = 60; pdf.draw_panel(10, 22, 135, h_box); pdf.draw_panel(10, 85, 135, h_box); pdf.draw_panel(10, 148, 135, h_box)
-        i1 = save_chart(f1, 550, 260); pdf.image(i1, 11, 23, 133, h_box-2); os.remove(i1)
-        i2 = save_chart(f2, 550, 260); pdf.image(i2, 11, 86, 133, h_box-2); os.remove(i2)
-        i3 = save_chart(f3, 550, 260); pdf.image(i3, 11, 149, 133, h_box-2); os.remove(i3)
+        i1 = save_chart(f1, w=550, h=260); pdf.image(i1, x=11, y=23, w=133, h=h_box-2); os.remove(i1)
+        i2 = save_chart(f2, w=550, h=260); pdf.image(i2, x=11, y=86, w=133, h=h_box-2); os.remove(i2)
+        i3 = save_chart(f3, w=550, h=260); pdf.image(i3, x=11, y=149, w=133, h=h_box-2); os.remove(i3)
 
         h_br = 83.5; pdf.draw_panel(150, 22, 135, h_br); pdf.draw_panel(150, 108.5, 135, h_br)
         if not df_p_target.empty:
@@ -378,8 +378,8 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
                 f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
-            i4 = save_chart(f4, 550, 330); pdf.image(i4, 151, 23, 133, h_br-2); os.remove(i4)
-            i5 = save_chart(f5, 550, 330); pdf.image(i5, 151, 109.5, 133, h_br-2); os.remove(i5)
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, x=151, y=23, w=133, h=h_br-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, x=151, y=109.5, w=133, h=h_br-2); os.remove(i5)
             
         pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
