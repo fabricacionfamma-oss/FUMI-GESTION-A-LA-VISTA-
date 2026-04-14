@@ -30,18 +30,14 @@ MAQUINAS_MAP = {
     "SOP-017": "PRP", "SOP-018": "PRP", "SOP-019": "PRP", "SOP-020": "PRP", "SOP-022": "PRP",
     "SOP-023": "PRP", "SOP-024": "PRP", "SOP-025": "PRP", "SOP-026": "PRP", "SOP-027": "PRP",
     "SOP-028": "PRP", "SOP-029": "PRP", "SOP-030": "PRP",
-    
-    # INCLUSIÓN EXPLÍCITA DE TODAS LAS DOBLADORAS
     "DOB-001": "DOBLADORAS", "DOB-002": "DOBLADORAS", "DOB-003": "DOBLADORAS", "DOB-004": "DOBLADORAS", 
     "DOB-005": "DOBLADORAS", "DOB-006": "DOBLADORAS", "DOB-007": "DOBLADORAS", "DOB-008": "DOBLADORAS",
     "DOB-009": "DOBLADORAS", "DOB-010": "DOBLADORAS",
-    
     "Celda 01 Fumis": "CELDAS RENAULT", "Celda 02 Fumis": "CELDAS RENAULT", "Celda 03 Fumis": "CELDAS RENAULT", 
     "Celda 04 Fumis": "CELDAS RENAULT", "Celda 05 Fumis": "CELDAS RENAULT", "Celda 06 Fumis": "CELDAS RENAULT",
     "Celda 07 Fumis": "CELDAS RENAULT", "Celda 08 Fumis": "CELDAS RENAULT", "Celda 09 Fumis": "CELDAS RENAULT",
     "Celda 10 Fumis": "CELDAS RENAULT", "Celda 11 Fumis": "CELDAS RENAULT", "Celda 12 Fumis": "CELDAS RENAULT",
     "Celda 13 Fumis": "CELDAS RENAULT", "Celda 14 Fumis": "CELDAS RENAULT", "Celda 15 Fumis": "CELDAS RENAULT",
-    
     "Cel1 - Rob13 - RUEDA AUX.": "CELDAS", "Cel2 - Rob1 - ALMOHADON": "CELDAS",
     "Cel3 - Rob14 - HANGERS": "CELDAS", "Cel4 - Rob6 - DOB TORCHA": "CELDAS",
     "Cel5 - Rob4 - Respaldo 60/40": "CELDAS", "HANGERS NISSAN": "CELDAS"
@@ -104,7 +100,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (SQL MENSUAL EXACTO)
+# 2. CARGA DE DATOS 
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -114,16 +110,16 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
         
-        # 1. KPIs Principales: Tabla MENSUAL OFICIAL (PROD_M_03)
+        # 1. KPIs Principales (M_03 Mensual Oficial para coincidir con Excel)
         q_metrics = f"SELECT c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month = {mes} GROUP BY c.Name"
         
-        # 2. Eventos y Fallas (Fechas exactas)
+        # 2. Eventos y Fallas
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
         
-        # 3. Piezas para el TOP 5
+        # 3. Piezas Top 5
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
-        # 4. Tendencias Mensuales (M_01 y M_03 para MATCH EXACTO con Excel)
+        # 4. Tendencias Mensuales M_01 y M_03 (MATCH EXACTO con Excel)
         q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_trend_piezas_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
 
@@ -133,6 +129,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_trend_oee = conn.query(q_trend_oee_monthly).fillna(0)
         df_trend_piezas = conn.query(q_trend_piezas_monthly).fillna(0)
 
+        # Conversiones seguras
         cols_metrics = ['Buenas', 'Retrabajo', 'Observadas', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']
         for c in cols_metrics:
             if c in df_metrics.columns: df_metrics[c] = pd.to_numeric(df_metrics[c], errors='coerce').fillna(0)
@@ -224,6 +221,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
         pdf.cell(40, 6, label_reporte, 1, 0, 'C', fill=True); pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True); pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C', fill=True)
 
+        # CÁLCULO PONDERADO EXACTO (Evitando inflar %)
         t_plan = df_m_target['T_Planificado'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
         t_piezas = (df_m_target['Buenas'].sum() + df_m_target['Retrabajo'].sum() + df_m_target['Observadas'].sum()) if not df_m_target.empty else 0
@@ -247,12 +245,13 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
             if df_in.empty: return
             
-            cols_req = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales', 'Month']
+            # ATENCIÓN: "Month" se excluye de la lista de sumas para evitar el error ValueError en reset_index()
+            cols_req = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales']
             for c in cols_req:
                 if c in df_in.columns: df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
             
+            # Aquí Pandas usa 'Month' solo para agrupar y reset_index() funciona perfecto
             df_g = df_in.groupby('Month')[cols_req].sum().reset_index()
-            if 'Month' in df_g.columns: df_g['Month'] = df_g['Month'].astype(int)
             
             if col == 'OEE' and 'OEE_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
@@ -278,7 +277,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
             fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
-            img = save_chart(fig, w=600, h=220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
+            img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
         pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
         add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48)
@@ -316,7 +315,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
             fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
             fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
-            img_stack = save_chart(fig_stack, w=600, h=180); pdf.image(img_stack, x=151, y=158, w=134); os.remove(img_stack)
+            img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
             
     return pdf.output(dest='S').encode('latin-1')
 
