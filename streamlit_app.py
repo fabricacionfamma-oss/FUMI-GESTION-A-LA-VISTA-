@@ -115,19 +115,33 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
         if df_raw.empty: 
-            df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
+            df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
+            
+            # PURGA ABSOLUTA DE PROYECTO (Elimina cualquier fila que contenga la palabra en los niveles)
+            for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
+                df_raw[col] = df_raw[col].fillna('')
+                df_raw = df_raw[~df_raw[col].str.upper().str.contains('PROYECTO')]
+
             def cat_estado(row):
                 t = f"{row.get('Nivel Evento 1','')} {row.get('Nivel Evento 2','')} ".upper()
                 return 'Producción' if ('PRODUCCION' in t or 'PRODUCCIÓN' in t) else ('Parada Programada' if 'PARADA PROGRAMADA' in t else 'Falla/Gestión')
+            
             def cat_macro(row):
                 n1 = str(row.get('Nivel Evento 1', '')).strip().upper()
                 return 'Gestión' if ('GESTION' in n1 or 'GESTIÓN' in n1) else (str(row.get('Nivel Evento 2', '')).title() if 'FALLA' in n1 else n1.title())
+            
             def get_det(row):
                 v = [str(row.get(c, '')).strip() for c in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']]
                 v = [n for n in v if n.lower() not in ['none', 'nan', '', 'null']]
-                return v[-1] if v else "Sin detalle"
+                # SOLUCIÓN: Mostrar cadena para evidenciar la carga del operador (Ej: Matriceria - Rotura)
+                if len(v) >= 2:
+                    return f"{v[-2]} - {v[-1]}"
+                elif len(v) == 1:
+                    return v[0] # Si el operador solo puso "Matriceria" y nada más, dirá solo "Matriceria"
+                return "Sin detalle"
+                
             df_raw['Estado_Global'] = df_raw.apply(cat_estado, axis=1)
             df_raw['Categoria_Macro'] = df_raw.apply(cat_macro, axis=1)
             df_raw['Detalle_Final'] = df_raw.apply(get_det, axis=1)
@@ -166,6 +180,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
         kpis = {"OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0}
+        
         for i, (lbl, val) in enumerate(kpis.items()):
             x = 10 + (i * 68.5); pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20)
             pdf.set_xy(x, y_kpi + 2); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(255); pdf.cell(65, 6, lbl, 0, 1, 'L')
@@ -183,11 +198,10 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             df_g['Mes_Str'] = df_g['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
             def get_c(v): return '#E74C3C' if v < 0.75 else ('#F1C40F' if v <= 0.85 else '#2ECC71')
             df_g['Color'] = df_g['Val'].apply(get_c)
-            
             fig = go.Figure(data=[go.Bar(x=df_g['Mes_Str'], y=df_g['Val'], marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.8)', width=2)), text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.85)])
             fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="<b>75%</b>", annotation_font_color='black')
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
-            fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), yaxis=dict(range=[0, max(1.1, df_g['Val'].max()*1.3)], visible=False), xaxis_title="")
+            fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, max(1.1, df_g['Val'].max()*1.3)], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
             img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
@@ -204,8 +218,8 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
-            # FILTRO TOP 5: Excluir solo Baño, Refrigerio, Descanso y Proyecto
-            df_f_puras = df_f[~df_f['Detalle_Final'].str.upper().str.contains('BAÑO|BANO|REFRIGERIO|DESCANSO|PROYECTO', na=False)]
+            # FILTRO TOP 5: Excluir Baño y Refrigerio (Proyecto ya fue exterminado en SQL)
+            df_f_puras = df_f[~df_f['Detalle_Final'].str.upper().str.contains('BAÑO|BANO|REFRIGERIO|DESCANSO', na=False)]
             top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
             
             pdf.set_xy(10, 162); pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(*theme_color); pdf.set_text_color(255)
@@ -218,7 +232,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                 pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
             
-            # Gráfico de Barras Apiladas (Macro) - Incluye Matricería siempre
+            # Gráfico de Barras Apiladas (Macro) - INCLUYE TODOS (Matricería incluida)
             df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
             df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
             df_macro['Y'] = "Pérdidas"
@@ -234,7 +248,8 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 # 4. MOTOR: INFORME PRODUCTIVO (CALIDAD)
 # ==========================================
 def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel, hs_rt):
-    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0); theme_hex = '#%02x%02x%02x' % theme_color
+    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0)
+    theme_hex = '#%02x%02x%02x' % theme_color
     scrap_c = '#002147' if area.upper() == "ESTAMPADO" else '#722F37' # Azul Navy / Bordeaux
     rt_c = theme_hex
     grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
@@ -259,9 +274,11 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         if df_t_target.empty: continue
         
         df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum().reset_index()
-        df_ev['% Scrap'] = ((df_ev['Observadas'] / df_ev['Totales'].replace(0, 1)) * 100).round(2)
-        df_ev['% RT'] = ((df_ev['Retrabajo'] / df_ev['Totales'].replace(0, 1)) * 100).round(2)
-        df_ev['Mes_Str'] = df_ev['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
+        df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
+        df_ev['% Scrap'] = ((df_ev['Observadas'] / df_ev['Totales_Div']) * 100).round(2)
+        df_ev['% RT'] = ((df_ev['Retrabajo'] / df_ev['Totales_Div']) * 100).round(2)
+        meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
+        df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
         f1 = px.bar(df_ev, x='Mes_Str', y='Totales', color_discrete_sequence=[theme_hex]); f1.update_traces(texttemplate='<b>%{y:.3s}</b>')
         f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap', color_discrete_sequence=[theme_hex]); f2.update_traces(texttemplate='<b>%{y:.2f}%</b>')
@@ -273,8 +290,8 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             if i == 0: upper_limit = max_y * 1.3 if max_y > 0 else 1
             else: upper_limit = 0.2 
             f.update_yaxes(range=[0, upper_limit])
-            f.update_layout(title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=10, t=30, b=20), xaxis_title="", yaxis=dict(visible=False))
-            f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
+            f.update_layout(title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
+            f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
         h_box = 60; pdf.draw_panel(10, 22, 135, h_box); pdf.draw_panel(10, 85, 135, h_box); pdf.draw_panel(10, 148, 135, h_box)
         for i, f in enumerate([f1, f2, f3]): pdf.image(save_chart(f, 550, 260), 11, 23+(i*63), 133, h_box-2)
@@ -283,17 +300,22 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         if not df_p_target.empty:
             t_s = df_p_target.groupby('Pieza')['Scrap'].sum().nlargest(5).reset_index().sort_values('Scrap', ascending=True)
             t_rt = df_p_target.groupby('Pieza')['RT'].sum().nlargest(5).reset_index().sort_values('RT', ascending=True)
+            
             f4 = px.bar(t_s, x='Scrap', y='Pieza', orientation='h', color_discrete_sequence=[scrap_c])
             f5 = px.bar(t_rt, x='RT', y='Pieza', orientation='h', color_discrete_sequence=[rt_c])
             
+            titles_right = ["TOP 5 SCRAP POR PIEZA", "TOP 5 RT POR PIEZA"]
             for i, f in enumerate([f4, f5]):
-                max_v = t_s['Scrap'].max() if i==0 else t_rt['RT'].max()
-                f.update_xaxes(range=[0, max_v * 1.4])
-                f.update_layout(title=dict(text=f"<b>{['TOP 5 SCRAP POR PIEZA','TOP 5 RT POR PIEZA'][i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
-                f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
-            pdf.image(save_chart(f4, 550, 330), 151, 23, 133, h_br-2); pdf.image(save_chart(f5, 550, 330), 151, 109.5, 133, h_br-2)
+                max_x = t_s['Scrap'].max() if i==0 else t_rt['RT'].max()
+                upper_limit = max_x * 1.3 if max_x > 0 else 1
+                f.update_xaxes(range=[0, upper_limit])
+                f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
+                f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
+
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h_br-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h_br-2); os.remove(i5)
             
-        pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
+        pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1')
