@@ -89,7 +89,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (CORRECCIÓN WIIDEM)
+# 2. CARGA DE DATOS (SQL WIIDEM)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -100,7 +100,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         q_metrics = f"SELECT c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, (SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)) as PERFORMANCE, (SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as DISPONIBILIDAD, (SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)) as CALIDAD, (SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
         q_trend_oee = f"SELECT p.Month, c.Name as Máquina, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, SUM(p.ProductiveTime + p.DownTime) as T_Planificado, SUM(p.Performance * p.ProductiveTime) as Perf_Num, SUM(p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, SUM(p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        # OJO: Se usa PROD_M_01 para alinear las cantidades de producción con los datos reales de Wiidem (Evita duplicidad)
         q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.Good + p.Rework + p.Scrap) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(p.Scrap) as Scrap, SUM(p.Rework) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
@@ -120,32 +119,26 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
             
-            # PURGA ABSOLUTA DE PROYECTO (Elimina fila completa si 'PROYECTO' aparece en algún nivel)
+            # PURGA ABSOLUTA DE PROYECTO
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
                 df_raw[col] = df_raw[col].fillna('')
                 df_raw = df_raw[~df_raw[col].str.upper().str.contains('PROYECTO')]
 
-            # ESTADO GLOBAL: Se toma exclusivamente del Nivel Evento 1
             def cat_estado(row):
                 t1 = str(row.get('Nivel Evento 1','')).strip().upper()
                 if 'PRODUCCION' in t1 or 'PRODUCCIÓN' in t1: return 'Producción'
                 if 'PARADA PROGRAMADA' in t1: return 'Parada Programada'
                 return 'Falla/Gestión'
             
-            # CATEGORÍA MACRO (ÁREAS): Se toma exclusivamente del Nivel Evento 2 (Mantenimiento, Calidad, Gestion, etc.)
             def cat_macro(row):
                 n2 = str(row.get('Nivel Evento 2', '')).strip().title()
                 return n2 if n2 and n2.lower() not in ['nan', 'none', 'null', ''] else "Sin Área"
             
-            # DETALLE FINAL (FALLA PUNTUAL): Se toma exclusivamente del Nivel Evento 3 (Baño, Refrigerio, Fallas de Robot)
             def get_det(row):
                 n3 = str(row.get('Nivel Evento 3', '')).strip()
-                if n3 and n3.lower() not in ['nan', 'none', 'null', '']:
-                    return n3
-                # Si el operador omitió el Nivel 3, usamos el Nivel 2 como fallback para dejar la mala carga en evidencia
+                if n3 and n3.lower() not in ['nan', 'none', 'null', '']: return n3
                 n2 = str(row.get('Nivel Evento 2', '')).strip()
-                if n2 and n2.lower() not in ['nan', 'none', 'null', '']:
-                    return n2
+                if n2 and n2.lower() not in ['nan', 'none', 'null', '']: return n2
                 return "Sin detalle"
                 
             df_raw['Estado_Global'] = df_raw.apply(cat_estado, axis=1)
@@ -167,10 +160,21 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     pdf = ReportePDF(f"GESTIÓN A LA VISTA - {area}", label_reporte, theme_color)
     
     df_m = df_metrics_pdf.copy(); df_t = df_trend.copy(); df_r = df_pdf_raw.copy()
-    if not df_m.empty and df_m['OEE'].max() > 1.5: df_m[['OEE', 'DISPONIBILIDAD', 'PERFORMANCE', 'CALIDAD']] /= 100.0
+    if not df_m.empty and 'OEE' in df_m.columns and df_m['OEE'].max() > 1.5: 
+        df_m[['OEE', 'DISPONIBILIDAD', 'PERFORMANCE', 'CALIDAD']] /= 100.0
+        
     for d in [df_m, df_t, df_r]: 
-        if not d.empty: d['Grupo'] = d['Máquina'].str.strip().str.upper().map(mapa_limpio).fillna('Otro')
-    paginas = ['GENERAL'] + [g for g in grupos_area if not df_m.empty and g in df_m['Grupo'].unique()]
+        if not d.empty and 'Máquina' in d.columns:
+            d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
+        else:
+            d['Grupo'] = 'Otro'
+            
+    # CRÍTICO: Filtramos herméticamente por Área de Planta ANTES de procesar nada para evitar sumas cruzadas
+    df_m = df_m[df_m['Grupo'].isin(grupos_area)]
+    df_t = df_t[df_t['Grupo'].isin(grupos_area)]
+    df_r = df_r[df_r['Grupo'].isin(grupos_area)]
+            
+    paginas = ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
@@ -194,7 +198,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_text_color(0)
 
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
-            if df_in.empty: return
+            if df_in.empty or col not in df_in.columns and col+'_Num' not in df_in.columns: return
             if col == 'OEE': df_g = df_in.groupby('Month')[['OEE_Num', 'T_Planificado']].sum().reset_index(); df_g['Val'] = df_g['OEE_Num'] / df_g['T_Planificado'].replace(0, 1)
             elif col == 'PERFORMANCE': df_g = df_in.groupby('Month')[['Perf_Num', 'T_Operativo']].sum().reset_index(); df_g['Val'] = df_g['Perf_Num'] / df_g['T_Operativo'].replace(0, 1)
             elif col == 'DISPONIBILIDAD': df_g = df_in.groupby('Month')[['Disp_Num', 'T_Planificado']].sum().reset_index(); df_g['Val'] = df_g['Disp_Num'] / df_g['T_Planificado'].replace(0, 1)
@@ -224,7 +228,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
-            # FILTRO TOP 5: Excluir Baño, Refrigerio y Descanso (Para que solo se vean fallas reales de proceso en la tabla)
             df_f_puras = df_f[~df_f['Detalle_Final'].str.upper().str.contains('BAÑO|BANO|REFRIGERIO|DESCANSO', na=False)]
             top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
             
@@ -238,7 +241,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                 pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
             
-            # Gráfico de Barras Apiladas (Macro) - ESTE GRÁFICO TOMA LA COLUMNA 'Categoria_Macro' Y MUESTRA TODAS LAS ÁREAS (Incluido Gestión y Matricería)
             df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
             df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
             df_macro['Y'] = "Pérdidas"
@@ -254,17 +256,29 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 # 4. MOTOR: INFORME PRODUCTIVO (CALIDAD)
 # ==========================================
 def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel, hs_rt):
-    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0); theme_hex = '#%02x%02x%02x' % theme_color
+    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0)
+    theme_hex = '#%02x%02x%02x' % theme_color
     scrap_c = '#002147' if area.upper() == "ESTAMPADO" else '#722F37' # Azul Navy / Bordeaux
     rt_c = theme_hex
     grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
     pdf = ReportePDF(f"INFORME PRODUCTIVO - {area}", label_reporte, theme_color)
     
     df_t = df_trend.copy(); df_p = df_piezas.copy(); mapa = {k.upper(): v for k, v in MAQUINAS_MAP.items()}
-    for d in [df_t, df_p]: 
-        if not d.empty: d['Grupo'] = d['Máquina'].str.strip().str.upper().map(mapa).fillna('Otro')
+    
+    # Asignación segura de Grupos
+    if not df_t.empty and 'Máquina' in df_t.columns:
+        df_t['Grupo'] = df_t['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
+    else: df_t['Grupo'] = 'Otro'
         
-    paginas = ['GENERAL'] + [g for g in grupos if not df_t.empty and g in df_t['Grupo'].unique()]
+    if not df_p.empty and 'Máquina' in df_p.columns:
+        df_p['Grupo'] = df_p['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
+    else: df_p['Grupo'] = 'Otro'
+
+    # CRÍTICO: Filtramos herméticamente por Área de Planta
+    df_t = df_t[df_t['Grupo'].isin(grupos)]
+    df_p = df_p[df_p['Grupo'].isin(grupos)]
+
+    paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
@@ -330,44 +344,23 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 # ==========================================
 st.title("📄 Reportes Fumiscor")
 st.divider()
-st.write("### 1. Seleccione el Período")
 
-col_tipo, col_fecha = st.columns(2)
-with col_tipo: 
-    tipo_periodo = st.radio("Filtro:", ["Diario", "Semanal", "Mensual"], horizontal=True)
+st.write("### 1. Seleccione el Período (Mensual)")
+col1, col2 = st.columns(2)
+today = pd.to_datetime("today").date()
+with col1: 
+    m_sel = st.selectbox("Mes", range(1, 13), index=today.month-1)
+with col2: 
+    a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2)
 
-with col_fecha:
-    today = pd.to_datetime("today").date()
-    if tipo_periodo == "Diario": 
-        d = st.date_input("Día:", today)
-        ini = fin = pd.to_datetime(d)
-        m_sel = d.month
-        a_sel = d.year
-        lab = d.strftime('%d/%m/%Y')
-        
-    elif tipo_periodo == "Semanal": 
-        d = st.date_input("Día de la semana:", today)
-        dt = pd.to_datetime(d)
-        ini = dt - timedelta(days=dt.weekday())
-        fin = ini + timedelta(days=6)
-        m_sel = ini.month
-        a_sel = ini.year
-        lab = f"Sem {ini.isocalendar()[1]} ({ini.strftime('%d/%m')}-{fin.strftime('%d/%m')})"
-        
-    elif tipo_periodo == "Mensual": 
-        c1, c2 = st.columns(2)
-        with c1: 
-            m_sel = st.selectbox("Mes", range(1, 13), index=today.month-1)
-        with c2: 
-            a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2)
-        
-        ini = pd.to_datetime(f"{a_sel}-{m_sel}-01")
-        fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}")
-        lab = f"{m_sel}/{a_sel}"
+ini = pd.to_datetime(f"{a_sel}-{m_sel}-01")
+fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}")
+lab = f"{m_sel}/{a_sel}"
 
 df_m, df_r, df_t, df_p = fetch_data_from_db(ini, fin, m_sel, a_sel)
+
 st.write("### 2. Datos Manuales (Informe Productivo)")
-hs_rt = st.number_input("Horas de RT:", 0.0, 1000.0, 0.0, 1.0)
+hs_rt = st.number_input("Horas de RT:", min_value=0.0, max_value=1000.0, value=0.0, step=1.0)
 
 st.divider()
 st.write("### 3. Descargar Reportes")
