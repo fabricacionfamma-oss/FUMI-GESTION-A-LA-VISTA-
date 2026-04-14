@@ -13,26 +13,44 @@ from datetime import timedelta
 # ==========================================
 st.set_page_config(page_title="Reportes Fumiscor", layout="wide", page_icon="📊")
 
+# MAPEO EXACTO BASADO EN TU AGRUPACIÓN
 MAQUINAS_MAP = {
+    # --- ESTAMPADO ---
     "P-023": "PRENSAS PROGRESIVAS", "P-024": "PRENSAS PROGRESIVAS", "P-025": "PRENSAS PROGRESIVAS", "P-026": "PRENSAS PROGRESIVAS",
-    "P-027": "PRENSAS PROGRESIVAS GRANDES", "BAL-002": "BALANCIN", "BAL-003": "BALANCIN", "BAL-005": "BALANCIN", "BAL-006": "BALANCIN",
-    "BAL-007": "BALANCIN", "BAL-008": "BALANCIN", "BAL-009": "BALANCIN", "BAL-010": "BALANCIN", "P-011": "HIDRAULICAS", 
-    "P-016": "HIDRAULICAS", "P-017": "HIDRAULICAS", "P-018": "HIDRAULICAS", "P-015": "MECANICAS", "P-019": "MECANICAS", 
-    "P-020": "MECANICAS", "P-021": "MECANICAS", "P-022": "MECANICAS", "GOF01": "Gofradora",
+    "P-027": "PRENSAS PROGRESIVAS GRANDES", "P-028": "PRENSAS PROGRESIVAS GRANDES", "P-029": "PRENSAS PROGRESIVAS GRANDES", "P-030": "PRENSAS PROGRESIVAS GRANDES",
+    "BAL-002": "BALANCIN", "BAL-003": "BALANCIN", "BAL-005": "BALANCIN", "BAL-006": "BALANCIN", "BAL-007": "BALANCIN", 
+    "BAL-008": "BALANCIN", "BAL-009": "BALANCIN", "BAL-010": "BALANCIN", "BAL-011": "BALANCIN", "BAL-012": "BALANCIN", 
+    "BAL-013": "BALANCIN", "BAL-014": "BALANCIN", "BAL-015": "BALANCIN",
+    "P-011": "HIDRAULICAS", "P-012": "HIDRAULICAS", "P-013": "HIDRAULICAS", "P-014": "HIDRAULICAS", "P-016": "HIDRAULICAS", 
+    "P-017": "HIDRAULICAS", "P-018": "HIDRAULICAS", 
+    "P-015": "MECANICAS", "P-019": "MECANICAS", "P-020": "MECANICAS", "P-021": "MECANICAS", "P-022": "MECANICAS", 
+    "GOF01": "Gofradora",
+    
+    # --- SOLDADURA ---
+    # PRP
     "SOP-003": "PRP", "SOP-005": "PRP", "SOP-008": "PRP", "SOP-009": "PRP", "SOP-010": "PRP",
     "SOP-017": "PRP", "SOP-018": "PRP", "SOP-019": "PRP", "SOP-020": "PRP", "SOP-022": "PRP",
-    "SOP-023": "PRP", "SOP-024": "PRP", "SOP-025": "PRP", "DOB-001": "DOBLADORA", "DOB-002": "DOBLADORA", 
-    "DOB-003": "DOBLADORA", "DOB-004": "DOBLADORA", "DOB-005": "DOBLADORA", "DOB-006": "DOBLADORA",
-    "Celda 01 Fumis": "CELDA SOLDADURA RENAULT", "Celda 02 Fumis": "CELDA SOLDADURA RENAULT",
-    "Celda 03 Fumis": "CELDA SOLDADURA RENAULT", "Celda 04 Fumis": "CELDA SOLDADURA RENAULT",
-    "Celda 05 Fumis": "CELDA SOLDADURA RENAULT", "Celda 06 Fumis": "CELDA SOLDADURA RENAULT",
-    "Cel1 - Rob13 - RUEDA AUX.": "SOLDADURA NUEVA", "Cel2 - Rob1 - ALMOHADON": "SOLDADURA NUEVA",
-    "Cel3 - Rob14 - HANGERS": "SOLDADURA NUEVA", "Cel4 - Rob6 - DOB TORCHA": "SOLDADURA NUEVA",
-    "Cel5 - Rob4 - Respaldo 60/40": "SOLDADURA NUEVA", "HANGERS NISSAN": "SOLDADURA NUEVA"
+    "SOP-023": "PRP", "SOP-024": "PRP", "SOP-025": "PRP", "SOP-026": "PRP", "SOP-027": "PRP",
+    "SOP-028": "PRP", "SOP-029": "PRP", "SOP-030": "PRP",
+    # DOBLADORAS
+    "DOB-001": "DOBLADORAS", "DOB-002": "DOBLADORAS", "DOB-003": "DOBLADORAS", "DOB-004": "DOBLADORAS", 
+    "DOB-005": "DOBLADORAS", "DOB-006": "DOBLADORAS", "DOB-007": "DOBLADORAS", "DOB-008": "DOBLADORAS",
+    "DOB-009": "DOBLADORAS", "DOB-010": "DOBLADORAS",
+    # CELDAS RENAULT
+    "Celda 01 Fumis": "CELDAS RENAULT", "Celda 02 Fumis": "CELDAS RENAULT", "Celda 03 Fumis": "CELDAS RENAULT", 
+    "Celda 04 Fumis": "CELDAS RENAULT", "Celda 05 Fumis": "CELDAS RENAULT", "Celda 06 Fumis": "CELDAS RENAULT",
+    "Celda 07 Fumis": "CELDAS RENAULT", "Celda 08 Fumis": "CELDAS RENAULT", "Celda 09 Fumis": "CELDAS RENAULT",
+    "Celda 10 Fumis": "CELDAS RENAULT", "Celda 11 Fumis": "CELDAS RENAULT", "Celda 12 Fumis": "CELDAS RENAULT",
+    "Celda 13 Fumis": "CELDAS RENAULT", "Celda 14 Fumis": "CELDAS RENAULT", "Celda 15 Fumis": "CELDAS RENAULT",
+    # CELDAS NISSAN / NUEVAS
+    "Cel1 - Rob13 - RUEDA AUX.": "CELDAS NISSAN", "Cel2 - Rob1 - ALMOHADON": "CELDAS NISSAN",
+    "Cel3 - Rob14 - HANGERS": "CELDAS NISSAN", "Cel4 - Rob6 - DOB TORCHA": "CELDAS NISSAN",
+    "Cel5 - Rob4 - Respaldo 60/40": "CELDAS NISSAN", "HANGERS NISSAN": "CELDAS NISSAN"
 }
 
-GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora', 'OTRO ESTAMPADO']
-GRUPOS_SOLDADURA = ['PRP', 'DOBLADORA', 'CELDA SOLDADURA', 'CELDA SOLDADURA RENAULT', 'SOLDADURA NUEVA']
+GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora']
+# Estos nombres generarán las hojas individuales exactas en el PDF de Soldadura
+GRUPOS_SOLDADURA = ['PRP', 'DOBLADORAS', 'CELDAS RENAULT', 'CELDAS NISSAN'] 
 
 # ==========================================
 # 1. FUNCIONES AUXILIARES Y PDF
@@ -72,8 +90,7 @@ class ReportePDF(FPDF):
 
     def draw_panel(self, x, y, w, h, r=3, bg_color=(255,255,255)):
         self.set_fill_color(210, 210, 210); self.rounded_rect(x + 1.5, y + 1.5, w, h, r, style='F')
-        self.set_fill_color(*bg_color); self.set_draw_color(180, 180, 180)
-        self.rounded_rect(x, y, w, h, r, style='DF')
+        self.set_fill_color(*bg_color); self.set_draw_color(180, 180, 180); self.rounded_rect(x, y, w, h, r, style='DF')
 
     def draw_kpi_panel(self, x, y, w, h, r=3):
         self.set_fill_color(200, 200, 200); self.rounded_rect(x + 1.5, y + 1.5, w, h, r, style='F')
@@ -89,7 +106,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS
+# 2. CARGA DE DATOS (SQL BLINDADO)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -104,6 +121,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
+        # Tablas Diarias para la evolución (Evita los nulos de PROD_M_03)
         q_trend_oee_daily = f"SELECT p.Date, c.Name as Máquina, p.ProductiveTime as T_Operativo, p.DownTime as T_Parada, (p.ProductiveTime + p.DownTime) as T_Planificado, (p.Performance * p.ProductiveTime) as Perf_Num, (p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, (p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, (p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_year_str}' AND '{fin_str}'"
         q_trend_piezas_daily = f"SELECT p.Date, c.Name as Máquina, p.Good as Buenas, p.Rework as Retrabajo, p.Scrap as Observadas, (p.Good + p.Rework + p.Scrap) as Totales FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_year_str}' AND '{fin_str}'"
 
@@ -113,6 +131,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_t_oee_raw = conn.query(q_trend_oee_daily)
         df_t_pz_raw = conn.query(q_trend_piezas_daily)
 
+        # Agrupación Mensual Segura
         df_trend_oee = pd.DataFrame()
         if not df_t_oee_raw.empty:
             df_t_oee_raw['Date'] = pd.to_datetime(df_t_oee_raw['Date'])
@@ -197,9 +216,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     for d in [df_m, df_t, df_r]: 
         if not d.empty and 'Máquina' in d.columns:
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
-        else: d['Grupo'] = 'Otro'
+        else:
+            d['Grupo'] = 'Otro'
             
     df_m = df_m[df_m['Grupo'].isin(grupos_area)]; df_t = df_t[df_t['Grupo'].isin(grupos_area)]; df_r = df_r[df_r['Grupo'].isin(grupos_area)]
+    
+    # Crea una hoja por cada grupo (Dobladoras, Celdas Renault, etc.) que tenga datos
     paginas = ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
 
     for target in paginas:
@@ -215,7 +237,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
-        kpis = {"OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0}
+        kpis = {
+            "OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
+            "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, 
+            "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
+            "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0
+        }
         
         for i, (lbl, val) in enumerate(kpis.items()):
             x = 10 + (i * 68.5); pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20)
@@ -223,14 +250,20 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{val*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
-        # GENERADOR GRÁFICOS: Ya no pregunta por columnas falsas.
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
             if df_in.empty: return
             
-            df_g = df_in.groupby('Month').sum(numeric_only=True).reset_index()
+            # 1. Blindaje numérico: Obligar a Pandas a que convierta las columnas antes de sumar
+            columnas_requeridas = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales']
+            for c in columnas_requeridas:
+                if c in df_in.columns:
+                    df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
+            
+            # 2. Suma mensual segura
+            df_g = df_in.groupby('Month')[columnas_requeridas].sum().reset_index()
+            
             if 'Month' in df_g.columns: df_g['Month'] = df_g['Month'].astype(int)
             
-            # Se usan los nombres exactos que vienen de la base de datos SQL.
             if col == 'OEE' and 'OEE_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
             elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns: 
@@ -239,7 +272,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
             elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r.get('Totales', 0) > 0 else 0, axis=1)
-            else: return # Previene crasheos si el mes no tuvo actividad.
+            else: return
             
             if df_g['Val'].max() > 1.5: df_g['Val'] /= 100.0
             
@@ -255,10 +288,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
             fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
-            
-            img = save_chart(fig, w=600, h=220)
-            pdf.image(img, x=x_pos+2, y=y_pos+2, w=132)
-            os.remove(img)
+            img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
         pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
         add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48)
@@ -271,6 +301,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
         
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
+        
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
             excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
             mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
@@ -295,10 +326,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
             fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
             fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
-            
-            img_stack = save_chart(fig_stack, w=600, h=180)
-            pdf.image(img_stack, x=151, y=158, w=134)
-            os.remove(img_stack)
+            img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
             
     return pdf.output(dest='S').encode('latin-1')
 
@@ -335,7 +363,10 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
         if df_t_target.empty: continue
         
-        df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum(numeric_only=True).reset_index()
+        for col in ['Buenas', 'Observadas', 'Retrabajo', 'Totales']:
+            if col in df_t_target.columns: df_t_target[col] = pd.to_numeric(df_t_target[col], errors='coerce').fillna(0)
+
+        df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum().reset_index()
         if 'Month' in df_ev.columns: df_ev['Month'] = df_ev['Month'].astype(int)
         
         df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
