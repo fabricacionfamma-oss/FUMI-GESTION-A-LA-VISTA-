@@ -8,6 +8,16 @@ import calendar
 from fpdf import FPDF
 from datetime import timedelta
 
+# ===================================import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import tempfile
+import os
+import calendar
+from fpdf import FPDF
+from datetime import timedelta
+
 # ==========================================
 # 0. CONFIGURACIÓN Y CONSTANTES
 # ==========================================
