@@ -258,14 +258,13 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel, hs_rt):
     theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0)
     theme_hex = '#%02x%02x%02x' % theme_color
-    scrap_c = '#002147' if area.upper() == "ESTAMPADO" else '#722F37' # Azul Navy / Bordeaux
+    scrap_c = '#002147' if area.upper() == "ESTAMPADO" else '#722F37' 
     rt_c = theme_hex
     grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
     pdf = ReportePDF(f"INFORME PRODUCTIVO - {area}", label_reporte, theme_color)
     
     df_t = df_trend.copy(); df_p = df_piezas.copy(); mapa = {k.upper(): v for k, v in MAQUINAS_MAP.items()}
     
-    # Asignación segura de Grupos
     if not df_t.empty and 'Máquina' in df_t.columns:
         df_t['Grupo'] = df_t['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
     else: df_t['Grupo'] = 'Otro'
@@ -274,7 +273,6 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         df_p['Grupo'] = df_p['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
     else: df_p['Grupo'] = 'Otro'
 
-    # CRÍTICO: Filtramos herméticamente por Área de Planta
     df_t = df_t[df_t['Grupo'].isin(grupos)]
     df_p = df_p[df_p['Grupo'].isin(grupos)]
 
@@ -313,7 +311,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
         h_box = 60; pdf.draw_panel(10, 22, 135, h_box); pdf.draw_panel(10, 85, 135, h_box); pdf.draw_panel(10, 148, 135, h_box)
-        for i, f in enumerate([f1, f2, f3]): pdf.image(save_chart(f, 550, 260), 11, 23+(i*63), 133, h_box-2)
+        i1 = save_chart(f1, w=550, h=260); pdf.image(i1, 11, 23, w=133, h=h_box-2); os.remove(i1)
+        i2 = save_chart(f2, w=550, h=260); pdf.image(i2, 11, 86, w=133, h=h_box-2); os.remove(i2)
+        i3 = save_chart(f3, w=550, h=260); pdf.image(i3, 11, 149, w=133, h=h_box-2); os.remove(i3)
 
         h_br = 83.5; pdf.draw_panel(150, 22, 135, h_br); pdf.draw_panel(150, 108.5, 135, h_br)
         if not df_p_target.empty:
@@ -331,8 +331,8 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
                 f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
-            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h_br-2); os.remove(i4)
-            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h_br-2); os.remove(i5)
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h=h_br-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h=h_br-2); os.remove(i5)
             
         pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
