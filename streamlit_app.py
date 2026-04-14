@@ -13,7 +13,6 @@ from datetime import timedelta
 # ==========================================
 st.set_page_config(page_title="Reportes Fumiscor", layout="wide", page_icon="📊")
 
-# Mapeo Exacto: Garantiza que las máquinas vayan a su lugar sin filtros forzados
 MAQUINAS_MAP = {
     "P-023": "PRENSAS PROGRESIVAS", "P-024": "PRENSAS PROGRESIVAS", "P-025": "PRENSAS PROGRESIVAS", "P-026": "PRENSAS PROGRESIVAS",
     "P-027": "PRENSAS PROGRESIVAS GRANDES", "BAL-002": "BALANCIN", "BAL-003": "BALANCIN", "BAL-005": "BALANCIN", "BAL-006": "BALANCIN",
@@ -32,7 +31,7 @@ MAQUINAS_MAP = {
     "Cel5 - Rob4 - Respaldo 60/40": "SOLDADURA NUEVA", "HANGERS NISSAN": "SOLDADURA NUEVA"
 }
 
-GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora']
+GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora', 'OTRO ESTAMPADO']
 GRUPOS_SOLDADURA = ['PRP', 'DOBLADORA', 'CELDA SOLDADURA', 'CELDA SOLDADURA RENAULT', 'SOLDADURA NUEVA']
 
 # ==========================================
@@ -90,16 +89,20 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (SQL BLINDADO)
+# 2. CARGA DE DATOS (SQL BLINDADO Y SEPARADO)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
     try:
         conn = st.connection("wii_bi", type="sql")
-        ini_str = fecha_ini.strftime('%Y-%m-%d'); fin_str = fecha_fin.strftime('%Y-%m-%d')
+        
+        # BLINDAJE TEMPORAL: Captura hasta el último milisegundo del mes para no perder fallas.
+        ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
+        fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
         
         q_metrics = f"SELECT c.Name as Máquina, COALESCE(SUM(p.Good), 0) as Buenas, COALESCE(SUM(p.Rework), 0) as Retrabajo, COALESCE(SUM(p.Scrap), 0) as Observadas, COALESCE(SUM(p.ProductiveTime), 0) as T_Operativo, COALESCE(SUM(p.DownTime), 0) as T_Parada, COALESCE((SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)), 0) as PERFORMANCE, COALESCE((SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as DISPONIBILIDAD, COALESCE((SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)), 0) as CALIDAD, COALESCE((SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
+        
         q_trend_oee = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
@@ -115,14 +118,25 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
+        # BLINDAJE DE COLUMNAS NUMÉRICAS
+        columnas_numericas = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales', 'Month']
+        for col in columnas_numericas:
+            if col in df_trend.columns:
+                df_trend[col] = pd.to_numeric(df_trend[col], errors='coerce').fillna(0)
+
         if df_raw.empty: 
             df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
             
-            # PURGA ABSOLUTA DE NULOS Y DE 'PROYECTO'
+            # TRATAMIENTO ESTRICTO COMO TEXTO PARA LAS FALLAS (Evita que Pandas los vuelva "0")
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
-                df_raw[col] = df_raw[col].fillna('').astype(str)
+                if col in df_raw.columns:
+                    df_raw[col] = df_raw[col].fillna('').astype(str)
+                else:
+                    df_raw[col] = ''
+                    
+            # PURGA DE PROYECTO DIRECTO EN PANDAS
             mask_proyecto = (df_raw['Nivel Evento 1'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 2'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 3'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 4'].str.upper().str.contains('PROYECTO'))
             df_raw = df_raw[~mask_proyecto].copy()
 
@@ -133,17 +147,14 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
                 if 'PARADA' in t1 or 'PARADA' in t2: return 'Parada Programada'
                 return 'Falla/Gestión'
             
-            # DETECCIÓN DE ÁREA MACRO: Atrapa 'Gestión' sin importar si está en Nivel 1 o Nivel 2
             def cat_macro(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
-                n2 = row['Nivel Evento 2'].strip().upper()
-                if 'GESTION' in n1 or 'GESTIÓN' in n1 or 'GESTION' in n2 or 'GESTIÓN' in n2:
-                    return 'Gestión'
-                if 'FALLA' in n1:
-                    return row['Nivel Evento 2'].strip().title() if n2 else 'Fallas Generales'
+                n2 = row['Nivel Evento 2'].strip().title()
+                if 'GESTION' in n1 or 'GESTIÓN' in n1: return 'Gestión'
+                elif 'FALLA' in n1: return n2 if n2 else 'Fallas Generales'
                 return n1.title() if n1 else 'Sin Área'
             
-            # DETALLE PUNTUAL: Se extrae siempre el nivel más profundo registrado (Nivel 4 -> Nivel 3 -> Nivel 2)
+            # REGLA ABSOLUTA: El nivel más profundo siempre gana.
             def get_det(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
                 n2 = row['Nivel Evento 2'].strip()
@@ -183,11 +194,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         else:
             d['Grupo'] = 'Otro'
             
-    # FILTRO AISLANTE DE PLANTAS: Bloquea máquinas de Estampado que cayeron en 'Otro' para no sumarlas en Soldadura
-    df_m = df_m[df_m['Grupo'].isin(grupos_area)]
-    df_t = df_t[df_t['Grupo'].isin(grupos_area)]
-    df_r = df_r[df_r['Grupo'].isin(grupos_area)]
-            
+    df_m = df_m[df_m['Grupo'].isin(grupos_area)]; df_t = df_t[df_t['Grupo'].isin(grupos_area)]; df_r = df_r[df_r['Grupo'].isin(grupos_area)]
     paginas = ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
 
     for target in paginas:
@@ -216,13 +223,13 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             
             df_g = df_in.groupby('Month').sum(numeric_only=True).reset_index()
             
-            if col == 'OEE' and 'OEE_Num' in df_g.columns: 
+            if col == 'OEE' and 'OEE_Num' in df_g.columns and 'T_Planificado' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
-            elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns: 
+            elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns and 'T_Operativo' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Perf_Num'] / r['T_Operativo'] if r.get('T_Operativo', 0) > 0 else 0, axis=1)
-            elif col == 'DISPONIBILIDAD' and 'Disp_Num' in df_g.columns: 
+            elif col == 'DISPONIBILIDAD' and 'Disp_Num' in df_g.columns and 'T_Planificado' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
-            elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns: 
+            elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns and 'Totales' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r.get('Totales', 0) > 0 else 0, axis=1)
             else: return
             
@@ -255,7 +262,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
-            # EXCLUSIÓN ESTRICTA: El Top 5 ignora Baño y Refrigerio
             excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
             mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
             df_f_puras = df_f[mask_puras]
@@ -272,7 +278,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                 pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
             
-            # BARRA MACRO: Incluye Baño/Refrigerio bajo 'Gestión'
             df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
             df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
             df_macro['Y'] = "Pérdidas"
@@ -302,10 +307,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
         else: d['Grupo'] = 'Otro'
 
-    # FILTRO AISLANTE DE PLANTAS
-    df_t = df_t[df_t['Grupo'].isin(grupos)]
-    df_p = df_p[df_p['Grupo'].isin(grupos)]
-
+    df_t = df_t[df_t['Grupo'].isin(grupos)]; df_p = df_p[df_p['Grupo'].isin(grupos)]
     paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
 
     for target in paginas:
