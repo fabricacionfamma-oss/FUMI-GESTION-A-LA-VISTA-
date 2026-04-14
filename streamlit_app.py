@@ -8,16 +8,6 @@ import calendar
 from fpdf import FPDF
 from datetime import timedelta
 
-# ===================================import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import tempfile
-import os
-import calendar
-from fpdf import FPDF
-from datetime import timedelta
-
 # ==========================================
 # 0. CONFIGURACIÓN Y CONSTANTES
 # ==========================================
@@ -149,7 +139,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
                 if len(v) >= 2:
                     return f"{v[-2]} - {v[-1]}"
                 elif len(v) == 1:
-                    return v[0] # Si el operador solo puso "Matriceria" y nada más, dirá solo "Matriceria"
+                    return v[0] 
                 return "Sin detalle"
                 
             df_raw['Estado_Global'] = df_raw.apply(cat_estado, axis=1)
@@ -304,7 +294,11 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
         h_box = 60; pdf.draw_panel(10, 22, 135, h_box); pdf.draw_panel(10, 85, 135, h_box); pdf.draw_panel(10, 148, 135, h_box)
-        for i, f in enumerate([f1, f2, f3]): pdf.image(save_chart(f, 550, 260), 11, 23+(i*63), 133, h_box-2)
+        
+        # Corrección del Error de Sintaxis (h=h_box-2)
+        i1 = save_chart(f1, w=550, h=260); pdf.image(i1, 11, 23, w=133, h=h_box-2); os.remove(i1)
+        i2 = save_chart(f2, w=550, h=260); pdf.image(i2, 11, 86, w=133, h=h_box-2); os.remove(i2)
+        i3 = save_chart(f3, w=550, h=260); pdf.image(i3, 11, 149, w=133, h=h_box-2); os.remove(i3)
 
         h_br = 83.5; pdf.draw_panel(150, 22, 135, h_br); pdf.draw_panel(150, 108.5, 135, h_br)
         if not df_p_target.empty:
@@ -322,8 +316,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
                 f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
-            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h_br-2); os.remove(i4)
-            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h_br-2); os.remove(i5)
+            # Corrección del Error de Sintaxis (h=h_br-2)
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h=h_br-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h=h_br-2); os.remove(i5)
             
         pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
@@ -333,10 +328,11 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 # ==========================================
 # 5. INTERFAZ STREAMLIT
 # ==========================================
-st.title("📄 Reportes Fumiscor"); st.divider()
+st.title("📄 Reportes Fumiscor")
+st.divider()
 st.write("### 1. Seleccione el Período")
-col_tipo, col_fecha = st.columns(2)
 
+col_tipo, col_fecha = st.columns(2)
 with col_tipo: 
     tipo_periodo = st.radio("Filtro:", ["Diario", "Semanal", "Mensual"], horizontal=True)
 
