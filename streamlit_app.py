@@ -255,22 +255,65 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 # ==========================================
 # 5. INTERFAZ STREAMLIT
 # ==========================================
-st.title("📄 Reportes Fumiscor"); st.divider()
+st.title("📄 Reportes Fumiscor")
+st.divider()
 st.write("### 1. Seleccione el Período")
+
 col_tipo, col_fecha = st.columns(2)
-with col_tipo: tipo_periodo = st.radio("Filtro:", ["Diario", "Semanal", "Mensual"], horizontal=True)
+with col_tipo: 
+    tipo_periodo = st.radio("Filtro:", ["Diario", "Semanal", "Mensual"], horizontal=True)
+
 with col_fecha:
     today = pd.to_datetime("today").date()
-    if tipo_periodo == "Diario": d = st.date_input("Día:", today); ini = fin = pd.to_datetime(d); m_sel = d.month; a_sel = d.year; lab = d.strftime('%d/%m/%Y')
-    elif tipo_periodo == "Semanal": d = st.date_input("Día de la semana:", today); dt = pd.to_datetime(d); ini = dt - timedelta(days=dt.weekday()); fin = ini + timedelta(days=6); m_sel = ini.month; a_sel = ini.year; lab = f"Sem {ini.isocalendar()[1]} ({ini.strftime('%d/%m')}-{fin.strftime('%d/%m')})"
-    elif tipo_periodo == "Mensual": c1, c2 = st.columns(2); with c1: m_sel = st.selectbox("Mes", range(1, 13), index=today.month-1); with c2: a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2); ini = pd.to_datetime(f"{a_sel}-{m_sel}-01"); fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}"); lab = f"{m_sel}/{a_sel}"
+    if tipo_periodo == "Diario": 
+        d = st.date_input("Día:", today)
+        ini = fin = pd.to_datetime(d)
+        m_sel = d.month
+        a_sel = d.year
+        lab = d.strftime('%d/%m/%Y')
+        
+    elif tipo_periodo == "Semanal": 
+        d = st.date_input("Día de la semana:", today)
+        dt = pd.to_datetime(d)
+        ini = dt - timedelta(days=dt.weekday())
+        fin = ini + timedelta(days=6)
+        m_sel = ini.month
+        a_sel = ini.year
+        lab = f"Sem {ini.isocalendar()[1]} ({ini.strftime('%d/%m')}-{fin.strftime('%d/%m')})"
+        
+    elif tipo_periodo == "Mensual": 
+        c1, c2 = st.columns(2)
+        with c1: 
+            m_sel = st.selectbox("Mes", range(1, 13), index=today.month-1)
+        with c2: 
+            a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2)
+        
+        ini = pd.to_datetime(f"{a_sel}-{m_sel}-01")
+        fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}")
+        lab = f"{m_sel}/{a_sel}"
+
 df_m, df_r, df_t, df_p = fetch_data_from_db(ini, fin, m_sel, a_sel)
+st.write("### 2. Datos Manuales (Informe Productivo)")
 hs_rt = st.number_input("Horas de RT:", 0.0, 1000.0, 0.0, 1.0)
-st.divider(); st.write("### 2. Descargar Reportes")
+
+st.divider()
+st.write("### 3. Descargar Reportes")
 c_d, c_p = st.columns(2)
+
 with c_d:
-    if st.button("Disponibilidad ESTAMPADO", use_container_width=True): st.download_button("📥 Bajar PDF", crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t), "Disp_Estampado.pdf")
-    if st.button("Disponibilidad SOLDADURA", use_container_width=True): st.download_button("📥 Bajar PDF", crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t), "Disp_Soldadura.pdf")
+    st.markdown("#### ⚙️ Informe de Disponibilidad (OEE)")
+    if st.button("Disponibilidad ESTAMPADO", use_container_width=True): 
+        with st.spinner("Generando..."):
+            st.download_button("📥 Bajar PDF Estampado", crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t), "Disp_Estampado.pdf")
+    if st.button("Disponibilidad SOLDADURA", use_container_width=True): 
+        with st.spinner("Generando..."):
+            st.download_button("📥 Bajar PDF Soldadura", crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t), "Disp_Soldadura.pdf")
+
 with c_p:
-    if st.button("Productivo ESTAMPADO", use_container_width=True): st.download_button("📥 Bajar PDF", crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt), "Prod_Estampado.pdf")
-    if st.button("Productivo SOLDADURA", use_container_width=True): st.download_button("📥 Bajar PDF", crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt), "Prod_Soldadura.pdf")
+    st.markdown("#### 🏭 Informe Productivo (Calidad)")
+    if st.button("Productivo ESTAMPADO", use_container_width=True): 
+        with st.spinner("Generando..."):
+            st.download_button("📥 Bajar PDF Estampado", crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt), "Prod_Estampado.pdf")
+    if st.button("Productivo SOLDADURA", use_container_width=True): 
+        with st.spinner("Generando..."):
+            st.download_button("📥 Bajar PDF Soldadura", crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt), "Prod_Soldadura.pdf")
