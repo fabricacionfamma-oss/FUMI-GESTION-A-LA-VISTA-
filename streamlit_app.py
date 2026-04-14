@@ -110,16 +110,10 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
         
-        # 1. KPIs Principales: Tabla MENSUAL OFICIAL (PROD_M_03)
         q_metrics = f"SELECT c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month = {mes} GROUP BY c.Name"
-        
-        # 2. Eventos y Fallas
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
-        
-        # 3. Piezas Top 5
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
-        # 4. Tendencias Mensuales
         q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_trend_piezas_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
 
@@ -211,16 +205,27 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
-        df_m_target = df_m if target == 'GENERAL' else df_m[df_m['Grupo'] == target]
-        df_t_target = df_t if target == 'GENERAL' else df_t[df_t['Grupo'] == target]
-        df_r_target = df_r if target == 'GENERAL' else df_r[df_r['Grupo'] == target]
+        
+        # FILTRO EXCLUSIVO PARA EL GENERAL DE SOLDADURA: Excluye CELDAS RENAULT
+        if target == 'GENERAL':
+            if area.upper() == 'SOLDADURA':
+                df_m_target = df_m[df_m['Grupo'] != 'CELDAS RENAULT']
+                df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
+                df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
+            else:
+                df_m_target = df_m
+                df_t_target = df_t
+                df_r_target = df_r
+        else:
+            df_m_target = df_m[df_m['Grupo'] == target]
+            df_t_target = df_t[df_t['Grupo'] == target]
+            df_r_target = df_r[df_r['Grupo'] == target]
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(40, 6, "PERIODO", 1, 0, 'C', fill=True); pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True); pdf.cell(40, 6, "INFORME", 1, 1, 'C', fill=True)
         pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
         pdf.cell(40, 6, label_reporte, 1, 0, 'C', fill=True); pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True); pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C', fill=True)
 
-        # FILTRO: Solo máquinas que tengan los 3 valores > 0 (T_Planificado, T_Operativo, Piezas Totales)
         if not df_m_target.empty:
             df_m_target['Totales'] = df_m_target['Buenas'] + df_m_target['Retrabajo'] + df_m_target['Observadas']
             valid_m = df_m_target[(df_m_target['T_Planificado'] > 0) & (df_m_target['T_Operativo'] > 0) & (df_m_target['Totales'] > 0)]
@@ -254,7 +259,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             for c in cols_req:
                 if c in df_in.columns: df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
             
-            # FILTRO GRÁFICA: Aplica exactamente la misma lógica de exclusión que en las tarjetas KPI superiores
             if 'Totales' in df_in.columns:
                 df_valid = df_in[(df_in['T_Planificado'] > 0) & (df_in['T_Operativo'] > 0) & (df_in['Totales'] > 0)]
             else:
@@ -354,8 +358,18 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
-        df_t_target = df_t if target == 'GENERAL' else df_t[df_t['Grupo'] == target]
-        df_p_target = df_p if target == 'GENERAL' else df_p[df_p['Grupo'] == target]
+        
+        # FILTRO EXCLUSIVO PARA EL GENERAL DE SOLDADURA: Excluye CELDAS RENAULT
+        if target == 'GENERAL':
+            if area.upper() == 'SOLDADURA':
+                df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
+                df_p_target = df_p[df_p['Grupo'] != 'CELDAS RENAULT']
+            else:
+                df_t_target = df_t
+                df_p_target = df_p
+        else:
+            df_t_target = df_t[df_t['Grupo'] == target]
+            df_p_target = df_p[df_p['Grupo'] == target]
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(20, 6, "MES", 1, 0, 'C', fill=True); pdf.cell(20, 6, "AÑO", 1, 0, 'C', fill=True); pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True); pdf.cell(40, 6, "AREA", 1, 1, 'C', fill=True)
