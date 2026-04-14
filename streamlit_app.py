@@ -89,7 +89,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (SQL WIIDEM)
+# 2. CARGA DE DATOS (SQL BLINDADO)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -97,11 +97,11 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         conn = st.connection("wii_bi", type="sql")
         ini_str = fecha_ini.strftime('%Y-%m-%d'); fin_str = fecha_fin.strftime('%Y-%m-%d')
         
-        q_metrics = f"SELECT c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, (SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)) as PERFORMANCE, (SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as DISPONIBILIDAD, (SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)) as CALIDAD, (SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
+        q_metrics = f"SELECT c.Name as Máquina, COALESCE(SUM(p.Good), 0) as Buenas, COALESCE(SUM(p.Rework), 0) as Retrabajo, COALESCE(SUM(p.Scrap), 0) as Observadas, COALESCE(SUM(p.ProductiveTime), 0) as T_Operativo, COALESCE(SUM(p.DownTime), 0) as T_Parada, COALESCE((SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)), 0) as PERFORMANCE, COALESCE((SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as DISPONIBILIDAD, COALESCE((SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)), 0) as CALIDAD, COALESCE((SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
-        q_trend_oee = f"SELECT p.Month, c.Name as Máquina, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, SUM(p.ProductiveTime + p.DownTime) as T_Planificado, SUM(p.Performance * p.ProductiveTime) as Perf_Num, SUM(p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, SUM(p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.Good + p.Rework + p.Scrap) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(p.Scrap) as Scrap, SUM(p.Rework) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
+        q_trend_oee = f"SELECT p.Month, c.Name as Máquina, COALESCE(SUM(p.ProductiveTime), 0) as T_Operativo, COALESCE(SUM(p.DownTime), 0) as T_Parada, COALESCE(SUM(p.ProductiveTime + p.DownTime), 0) as T_Planificado, COALESCE(SUM(p.Performance * p.ProductiveTime), 0) as Perf_Num, COALESCE(SUM(p.Availability * (p.ProductiveTime + p.DownTime)), 0) as Disp_Num, COALESCE(SUM(p.Quality * (p.Good + p.Rework + p.Scrap)), 0) as Cal_Num, COALESCE(SUM(p.Oee * (p.ProductiveTime + p.DownTime)), 0) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
+        q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, COALESCE(SUM(p.Good), 0) as Buenas, COALESCE(SUM(p.Rework), 0) as Retrabajo, COALESCE(SUM(p.Scrap), 0) as Observadas, COALESCE(SUM(p.Good + p.Rework + p.Scrap), 0) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
+        q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, COALESCE(SUM(p.Scrap), 0) as Scrap, COALESCE(SUM(p.Rework), 0) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
         df_metrics = conn.query(q_metrics)
         df_raw = conn.query(q_event)
@@ -119,27 +119,56 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
             
-            # PURGA ABSOLUTA DE PROYECTO
+            # PURGA ABSOLUTA DE PROYECTO (DESTRUCCIÓN TOTAL)
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
                 df_raw[col] = df_raw[col].fillna('')
-                df_raw = df_raw[~df_raw[col].str.upper().str.contains('PROYECTO')]
+            mask_proyecto = (
+                df_raw['Nivel Evento 1'].str.upper().str.contains('PROYECTO') |
+                df_raw['Nivel Evento 2'].str.upper().str.contains('PROYECTO') |
+                df_raw['Nivel Evento 3'].str.upper().str.contains('PROYECTO') |
+                df_raw['Nivel Evento 4'].str.upper().str.contains('PROYECTO')
+            )
+            df_raw = df_raw[~mask_proyecto].copy()
 
+            # ESTADO: Define si es Falla o no
             def cat_estado(row):
-                t1 = str(row.get('Nivel Evento 1','')).strip().upper()
+                t1 = str(row['Nivel Evento 1']).strip().upper()
                 if 'PRODUCCION' in t1 or 'PRODUCCIÓN' in t1: return 'Producción'
                 if 'PARADA PROGRAMADA' in t1: return 'Parada Programada'
                 return 'Falla/Gestión'
             
+            # CATEGORÍA MACRO: Si el Nivel 1 es Gestión, se adueña del Macro. Si es Falla, el macro es el Nivel 2.
             def cat_macro(row):
-                n2 = str(row.get('Nivel Evento 2', '')).strip().title()
-                return n2 if n2 and n2.lower() not in ['nan', 'none', 'null', ''] else "Sin Área"
+                n1 = str(row['Nivel Evento 1']).strip().upper()
+                n2 = str(row['Nivel Evento 2']).strip().title()
+                if 'GESTION' in n1 or 'GESTIÓN' in n1:
+                    return 'Gestión'
+                elif 'FALLA' in n1:
+                    return n2 if n2 else 'Fallas Generales'
+                return n1.title() if n1 else 'Sin Área'
             
+            # FALLA DETALLE PUNTUAL: Se ajusta a la jerarquía de cada macro
             def get_det(row):
-                n3 = str(row.get('Nivel Evento 3', '')).strip()
-                if n3 and n3.lower() not in ['nan', 'none', 'null', '']: return n3
-                n2 = str(row.get('Nivel Evento 2', '')).strip()
-                if n2 and n2.lower() not in ['nan', 'none', 'null', '']: return n2
-                return "Sin detalle"
+                n1 = str(row['Nivel Evento 1']).strip().upper()
+                n2 = str(row['Nivel Evento 2']).strip()
+                n3 = str(row['Nivel Evento 3']).strip()
+                n4 = str(row['Nivel Evento 4']).strip()
+                
+                if 'GESTION' in n1 or 'GESTIÓN' in n1:
+                    if n4: return n4
+                    if n3: return n3
+                    if n2: return n2
+                    return "Gestión (Sin Detalle)"
+                elif 'FALLA' in n1:
+                    if n4: return n4
+                    if n3: return n3
+                    if n2: return n2
+                    return "Falla General"
+                else:
+                    if n4: return n4
+                    if n3: return n3
+                    if n2: return n2
+                    return n1 if n1 else "Sin detalle"
                 
             df_raw['Estado_Global'] = df_raw.apply(cat_estado, axis=1)
             df_raw['Categoria_Macro'] = df_raw.apply(cat_macro, axis=1)
@@ -169,7 +198,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         else:
             d['Grupo'] = 'Otro'
             
-    # CRÍTICO: Filtramos herméticamente por Área de Planta ANTES de procesar nada para evitar sumas cruzadas
+    # FILTRO ESTRICTO DE PLANTA PARA NO MEZCLAR FALLAS DE ESTAMPADO EN SOLDADURA
     df_m = df_m[df_m['Grupo'].isin(grupos_area)]
     df_t = df_t[df_t['Grupo'].isin(grupos_area)]
     df_r = df_r[df_r['Grupo'].isin(grupos_area)]
@@ -208,10 +237,15 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             df_g['Mes_Str'] = df_g['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
             def get_c(v): return '#E74C3C' if v < 0.75 else ('#F1C40F' if v <= 0.85 else '#2ECC71')
             df_g['Color'] = df_g['Val'].apply(get_c)
+            
+            # Garantizar que el eje Y siempre tenga margen
+            max_y = df_g['Val'].max() if not df_g.empty else 1
+            upper_limit = max(1.1, max_y * 1.3)
+
             fig = go.Figure(data=[go.Bar(x=df_g['Mes_Str'], y=df_g['Val'], marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.8)', width=2)), text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.85)])
             fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="<b>75%</b>", annotation_font_color='black')
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
-            fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, max(1.1, df_g['Val'].max()*1.3)], visible=False), xaxis_title="")
+            fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
             img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
 
@@ -228,6 +262,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
+            # EXCLUSIÓN ESTRICTA: El Top 5 ignora Baño y Refrigerio
             df_f_puras = df_f[~df_f['Detalle_Final'].str.upper().str.contains('BAÑO|BANO|REFRIGERIO|DESCANSO', na=False)]
             top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
             
@@ -241,6 +276,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                 pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
             
+            # BARRA MACRO: Agrupa por Gestión, Mantenimiento, etc. (Incluyendo los minutos de Baño y Refrigerio)
             df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
             df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
             df_macro['Y'] = "Pérdidas"
@@ -273,6 +309,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         df_p['Grupo'] = df_p['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
     else: df_p['Grupo'] = 'Otro'
 
+    # FILTRO ESTRICTO POR ÁREA
     df_t = df_t[df_t['Grupo'].isin(grupos)]
     df_p = df_p[df_p['Grupo'].isin(grupos)]
 
@@ -331,8 +368,8 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
                 f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
-            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h=h_br-2); os.remove(i4)
-            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h=h_br-2); os.remove(i5)
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, 151, 23, w=133, h_br-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, 151, 109.5, w=133, h_br-2); os.remove(i5)
             
         pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
