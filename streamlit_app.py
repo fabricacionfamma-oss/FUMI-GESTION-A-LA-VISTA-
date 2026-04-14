@@ -107,29 +107,34 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
-        df_metrics = conn.query(q_metrics)
+        df_metrics = conn.query(q_metrics).fillna(0)
         df_raw = conn.query(q_event)
         df_trend_oee = conn.query(q_trend_oee)
         df_trend_piezas = conn.query(q_trend_piezas)
-        df_piezas = conn.query(q_piezas)
+        df_piezas = conn.query(q_piezas).fillna(0)
+
+        # CRÍTICO: Forzar conversión a numérico puro (float) antes de agrupar para evitar que Pandas elimine las columnas
+        if not df_trend_oee.empty:
+            for col in ['Month', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']:
+                if col in df_trend_oee.columns:
+                    df_trend_oee[col] = pd.to_numeric(df_trend_oee[col], errors='coerce').fillna(0)
+                    
+        if not df_trend_piezas.empty:
+            for col in ['Month', 'Buenas', 'Retrabajo', 'Observadas', 'Totales']:
+                if col in df_trend_piezas.columns:
+                    df_trend_piezas[col] = pd.to_numeric(df_trend_piezas[col], errors='coerce').fillna(0)
 
         if not df_trend_oee.empty and not df_trend_piezas.empty:
             df_trend = pd.merge(df_trend_piezas, df_trend_oee, on=['Month', 'Máquina'], how='outer').fillna(0)
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
-        # BLINDAJE DE COLUMNAS NUMÉRICAS
-        columnas_numericas = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales', 'Month']
-        for col in columnas_numericas:
-            if col in df_trend.columns:
-                df_trend[col] = pd.to_numeric(df_trend[col], errors='coerce').fillna(0)
-
         if df_raw.empty: 
             df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
             
-            # TRATAMIENTO ESTRICTO COMO TEXTO PARA LAS FALLAS (Evita que Pandas los vuelva "0")
+            # TRATAMIENTO ESTRICTO COMO TEXTO PARA LAS FALLAS
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
                 if col in df_raw.columns:
                     df_raw[col] = df_raw[col].fillna('').astype(str)
@@ -154,7 +159,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
                 elif 'FALLA' in n1: return n2 if n2 else 'Fallas Generales'
                 return n1.title() if n1 else 'Sin Área'
             
-            # REGLA ABSOLUTA: El nivel más profundo siempre gana.
+            # REGLA ABSOLUTA: El nivel más profundo siempre es la Causa Raíz
             def get_det(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
                 n2 = row['Nivel Evento 2'].strip()
@@ -210,7 +215,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
-        kpis = {"OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0}
+        kpis = {
+            "OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
+            "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, 
+            "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
+            "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0
+        }
         
         for i, (lbl, val) in enumerate(kpis.items()):
             x = 10 + (i * 68.5); pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20)
@@ -222,14 +232,16 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             if df_in.empty or (col not in df_in.columns and col+'_Num' not in df_in.columns): return
             
             df_g = df_in.groupby('Month').sum(numeric_only=True).reset_index()
+            if 'Month' in df_g.columns:
+                df_g['Month'] = df_g['Month'].astype(int)
             
-            if col == 'OEE' and 'OEE_Num' in df_g.columns and 'T_Planificado' in df_g.columns: 
+            if col == 'OEE' and 'OEE_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
-            elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns and 'T_Operativo' in df_g.columns: 
+            elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Perf_Num'] / r['T_Operativo'] if r.get('T_Operativo', 0) > 0 else 0, axis=1)
-            elif col == 'DISPONIBILIDAD' and 'Disp_Num' in df_g.columns and 'T_Planificado' in df_g.columns: 
+            elif col == 'DISPONIBILIDAD' and 'Disp_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
-            elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns and 'Totales' in df_g.columns: 
+            elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r.get('Totales', 0) > 0 else 0, axis=1)
             else: return
             
@@ -307,7 +319,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
         else: d['Grupo'] = 'Otro'
 
-    df_t = df_t[df_t['Grupo'].isin(grupos)]; df_p = df_p[df_p['Grupo'].isin(grupos)]
+    df_t = df_t[df_t['Grupo'].isin(grupos)]
+    df_p = df_p[df_p['Grupo'].isin(grupos)]
+
     paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
 
     for target in paginas:
@@ -322,7 +336,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
         if df_t_target.empty: continue
         
-        df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum(numeric_only=True).reset_index()
+        df_ev = df_t_target.groupby('Month').sum(numeric_only=True).reset_index()
+        if 'Month' in df_ev.columns: df_ev['Month'] = df_ev['Month'].astype(int)
+        
         df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
         df_ev['% Scrap'] = ((df_ev['Observadas'] / df_ev['Totales_Div']) * 100).round(2)
         df_ev['% RT'] = ((df_ev['Retrabajo'] / df_ev['Totales_Div']) * 100).round(2)
