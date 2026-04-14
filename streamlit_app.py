@@ -206,16 +206,14 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
-        # FILTRO EXCLUSIVO PARA EL GENERAL DE SOLDADURA: Excluye CELDAS RENAULT
+        # Filtro de Exclusión SOLO para GESTIÓN A LA VISTA
         if target == 'GENERAL':
             if area.upper() == 'SOLDADURA':
                 df_m_target = df_m[df_m['Grupo'] != 'CELDAS RENAULT']
                 df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
                 df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
             else:
-                df_m_target = df_m
-                df_t_target = df_t
-                df_r_target = df_r
+                df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
         else:
             df_m_target = df_m[df_m['Grupo'] == target]
             df_t_target = df_t[df_t['Grupo'] == target]
@@ -331,7 +329,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
             fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
             fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
-            img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
+            img_stack = save_chart(fig_stack, w=600, h=180); pdf.image(img_stack, x=151, y=158, w=134); os.remove(img_stack)
             
     return pdf.output(dest='S').encode('latin-1')
 
@@ -359,14 +357,10 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
-        # FILTRO EXCLUSIVO PARA EL GENERAL DE SOLDADURA: Excluye CELDAS RENAULT
+        # ELIMINADO EL FILTRO DE CELDAS RENAULT PARA PRODUCCIÓN
         if target == 'GENERAL':
-            if area.upper() == 'SOLDADURA':
-                df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
-                df_p_target = df_p[df_p['Grupo'] != 'CELDAS RENAULT']
-            else:
-                df_t_target = df_t
-                df_p_target = df_p
+            df_t_target = df_t
+            df_p_target = df_p
         else:
             df_t_target = df_t[df_t['Grupo'] == target]
             df_p_target = df_p[df_p['Grupo'] == target]
@@ -390,13 +384,14 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
-        f1 = px.bar(df_ev, x='Mes_Str', y='Buenas', color_discrete_sequence=[theme_hex]); f1.update_traces(texttemplate='<b>%{y:.3s}</b>')
+        # SE GRAFICA LA COLUMNA "TOTALES" PARA EL VOLUMEN DE PIEZAS
+        f1 = px.bar(df_ev, x='Mes_Str', y='Totales', color_discrete_sequence=[theme_hex]); f1.update_traces(texttemplate='<b>%{y:.3s}</b>')
         f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap', color_discrete_sequence=[theme_hex]); f2.update_traces(texttemplate='<b>%{y:.2f}%</b>')
         f3 = px.bar(df_ev, x='Mes_Str', y='% RT', color_discrete_sequence=[theme_hex]); f3.update_traces(texttemplate='<b>%{y:.2f}%</b>')
         
-        titles = ["PIEZAS PRODUCIDAS (BUENAS)", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
+        titles = ["PIEZAS PRODUCIDAS MES A MES", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
         for i, f in enumerate([f1, f2, f3]): 
-            max_y = df_ev['Buenas'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
+            max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
             if i == 0: upper_limit = max_y * 1.3 if max_y > 0 else 1
             else: upper_limit = max(0.2, max_y * 1.3)
             f.update_yaxes(range=[0, upper_limit])
