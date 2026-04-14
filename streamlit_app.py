@@ -100,7 +100,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS 
+# 2. CARGA DE DATOS (SQL MENSUAL EXACTO)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -110,7 +110,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
         
-        # 1. KPIs Principales (M_03 Mensual Oficial para coincidir con Excel)
+        # 1. KPIs Principales: Tabla MENSUAL OFICIAL (PROD_M_03)
         q_metrics = f"SELECT c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month = {mes} GROUP BY c.Name"
         
         # 2. Eventos y Fallas
@@ -119,7 +119,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         # 3. Piezas Top 5
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
-        # 4. Tendencias Mensuales M_01 y M_03 (MATCH EXACTO con Excel)
+        # 4. Tendencias Mensuales
         q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_trend_piezas_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
 
@@ -129,7 +129,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_trend_oee = conn.query(q_trend_oee_monthly).fillna(0)
         df_trend_piezas = conn.query(q_trend_piezas_monthly).fillna(0)
 
-        # Conversiones seguras
         cols_metrics = ['Buenas', 'Retrabajo', 'Observadas', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']
         for c in cols_metrics:
             if c in df_metrics.columns: df_metrics[c] = pd.to_numeric(df_metrics[c], errors='coerce').fillna(0)
@@ -221,15 +220,21 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
         pdf.cell(40, 6, label_reporte, 1, 0, 'C', fill=True); pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True); pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C', fill=True)
 
-        # CÁLCULO PONDERADO EXACTO (Evitando inflar %)
-        t_plan = df_m_target['T_Planificado'].sum() if not df_m_target.empty else 0
-        t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
-        t_piezas = (df_m_target['Buenas'].sum() + df_m_target['Retrabajo'].sum() + df_m_target['Observadas'].sum()) if not df_m_target.empty else 0
+        # FILTRO: Solo máquinas que tengan los 3 valores > 0 (T_Planificado, T_Operativo, Piezas Totales)
+        if not df_m_target.empty:
+            df_m_target['Totales'] = df_m_target['Buenas'] + df_m_target['Retrabajo'] + df_m_target['Observadas']
+            valid_m = df_m_target[(df_m_target['T_Planificado'] > 0) & (df_m_target['T_Operativo'] > 0) & (df_m_target['Totales'] > 0)]
+        else:
+            valid_m = pd.DataFrame()
+
+        t_plan = valid_m['T_Planificado'].sum() if not valid_m.empty else 0
+        t_op = valid_m['T_Operativo'].sum() if not valid_m.empty else 0
+        t_piezas = valid_m['Totales'].sum() if not valid_m.empty else 0
         
-        v_oee = (df_m_target['OEE_Num'].sum() / t_plan) if t_plan > 0 else 0
-        v_perf = (df_m_target['Perf_Num'].sum() / t_op) if t_op > 0 else 0
-        v_disp = (df_m_target['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
-        v_cal = (df_m_target['Cal_Num'].sum() / t_piezas) if t_piezas > 0 else 0
+        v_oee = (valid_m['OEE_Num'].sum() / t_plan) if t_plan > 0 else 0
+        v_perf = (valid_m['Perf_Num'].sum() / t_op) if t_op > 0 else 0
+        v_disp = (valid_m['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
+        v_cal = (valid_m['Cal_Num'].sum() / t_piezas) if t_piezas > 0 else 0
         
         if v_oee > 1.5 or v_perf > 1.5 or v_disp > 1.5:
             v_oee /= 100.0; v_perf /= 100.0; v_disp /= 100.0; v_cal /= 100.0
@@ -245,13 +250,20 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
             if df_in.empty: return
             
-            # ATENCIÓN: "Month" se excluye de la lista de sumas para evitar el error ValueError en reset_index()
             cols_req = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales']
             for c in cols_req:
                 if c in df_in.columns: df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
             
-            # Aquí Pandas usa 'Month' solo para agrupar y reset_index() funciona perfecto
-            df_g = df_in.groupby('Month')[cols_req].sum().reset_index()
+            # FILTRO GRÁFICA: Aplica exactamente la misma lógica de exclusión que en las tarjetas KPI superiores
+            if 'Totales' in df_in.columns:
+                df_valid = df_in[(df_in['T_Planificado'] > 0) & (df_in['T_Operativo'] > 0) & (df_in['Totales'] > 0)]
+            else:
+                df_valid = df_in[(df_in['T_Planificado'] > 0) & (df_in['T_Operativo'] > 0)]
+                
+            if df_valid.empty: return
+            
+            df_g = df_valid.groupby('Month')[cols_req].sum().reset_index()
+            if 'Month' in df_g.columns: df_g['Month'] = df_g['Month'].astype(int)
             
             if col == 'OEE' and 'OEE_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
