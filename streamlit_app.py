@@ -13,7 +13,6 @@ from datetime import timedelta
 # ==========================================
 st.set_page_config(page_title="Reportes Fumiscor", layout="wide", page_icon="📊")
 
-# MAPEO EXACTO: Se agregaron las máquinas de Soldadura Nueva explícitamente para evitar fugas de otras plantas.
 MAQUINAS_MAP = {
     "P-023": "PRENSAS PROGRESIVAS", "P-024": "PRENSAS PROGRESIVAS", "P-025": "PRENSAS PROGRESIVAS", "P-026": "PRENSAS PROGRESIVAS",
     "P-027": "PRENSAS PROGRESIVAS GRANDES", "BAL-002": "BALANCIN", "BAL-003": "BALANCIN", "BAL-005": "BALANCIN", "BAL-006": "BALANCIN",
@@ -27,13 +26,12 @@ MAQUINAS_MAP = {
     "Celda 01 Fumis": "CELDA SOLDADURA RENAULT", "Celda 02 Fumis": "CELDA SOLDADURA RENAULT",
     "Celda 03 Fumis": "CELDA SOLDADURA RENAULT", "Celda 04 Fumis": "CELDA SOLDADURA RENAULT",
     "Celda 05 Fumis": "CELDA SOLDADURA RENAULT", "Celda 06 Fumis": "CELDA SOLDADURA RENAULT",
-    # SOLDADURA NUEVA
     "Cel1 - Rob13 - RUEDA AUX.": "SOLDADURA NUEVA", "Cel2 - Rob1 - ALMOHADON": "SOLDADURA NUEVA",
     "Cel3 - Rob14 - HANGERS": "SOLDADURA NUEVA", "Cel4 - Rob6 - DOB TORCHA": "SOLDADURA NUEVA",
     "Cel5 - Rob4 - Respaldo 60/40": "SOLDADURA NUEVA", "HANGERS NISSAN": "SOLDADURA NUEVA"
 }
 
-GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora']
+GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora', 'OTRO ESTAMPADO']
 GRUPOS_SOLDADURA = ['PRP', 'DOBLADORA', 'CELDA SOLDADURA', 'CELDA SOLDADURA RENAULT', 'SOLDADURA NUEVA']
 
 # ==========================================
@@ -74,7 +72,8 @@ class ReportePDF(FPDF):
 
     def draw_panel(self, x, y, w, h, r=3, bg_color=(255,255,255)):
         self.set_fill_color(210, 210, 210); self.rounded_rect(x + 1.5, y + 1.5, w, h, r, style='F')
-        self.set_fill_color(*bg_color); self.set_draw_color(180, 180, 180); self.rounded_rect(x, y, w, h, r, style='DF')
+        self.set_fill_color(*bg_color); self.set_draw_color(180, 180, 180)
+        self.rounded_rect(x, y, w, h, r, style='DF')
 
     def draw_kpi_panel(self, x, y, w, h, r=3):
         self.set_fill_color(200, 200, 200); self.rounded_rect(x + 1.5, y + 1.5, w, h, r, style='F')
@@ -90,7 +89,7 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (SEGURA)
+# 2. CARGA DE DATOS (SQL BLINDADO)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
@@ -98,70 +97,66 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         conn = st.connection("wii_bi", type="sql")
         ini_str = fecha_ini.strftime('%Y-%m-%d'); fin_str = fecha_fin.strftime('%Y-%m-%d')
         
-        q_metrics = f"SELECT c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, (SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)) as PERFORMANCE, (SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as DISPONIBILIDAD, (SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)) as CALIDAD, (SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
+        q_metrics = f"SELECT c.Name as Máquina, COALESCE(SUM(p.Good), 0) as Buenas, COALESCE(SUM(p.Rework), 0) as Retrabajo, COALESCE(SUM(p.Scrap), 0) as Observadas, COALESCE(SUM(p.ProductiveTime), 0) as T_Operativo, COALESCE(SUM(p.DownTime), 0) as T_Parada, COALESCE((SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)), 0) as PERFORMANCE, COALESCE((SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as DISPONIBILIDAD, COALESCE((SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)), 0) as CALIDAD, COALESCE((SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
-        q_trend_oee = f"SELECT p.Month, c.Name as Máquina, SUM(p.ProductiveTime) as T_Operativo, SUM(p.DownTime) as T_Parada, SUM(p.ProductiveTime + p.DownTime) as T_Planificado, SUM(p.Performance * p.ProductiveTime) as Perf_Num, SUM(p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, SUM(p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(p.Good) as Buenas, SUM(p.Rework) as Retrabajo, SUM(p.Scrap) as Observadas, SUM(p.Good + p.Rework + p.Scrap) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(p.Scrap) as Scrap, SUM(p.Rework) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
+        
+        # Volvemos a PROD_M_03 y PROD_M_01 para evitar fallos de agrupacion
+        q_trend_oee = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
+        q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
+        q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
 
-        df_metrics = conn.query(q_metrics).fillna(0)
+        df_metrics = conn.query(q_metrics)
         df_raw = conn.query(q_event)
-        df_trend_oee = conn.query(q_trend_oee).fillna(0)
-        df_trend_piezas = conn.query(q_trend_piezas).fillna(0)
-        df_piezas = conn.query(q_piezas).fillna(0)
+        df_trend_oee = conn.query(q_trend_oee)
+        df_trend_piezas = conn.query(q_trend_piezas)
+        df_piezas = conn.query(q_piezas)
 
         if not df_trend_oee.empty and not df_trend_piezas.empty:
             df_trend = pd.merge(df_trend_piezas, df_trend_oee, on=['Month', 'Máquina'], how='outer').fillna(0)
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
+        # BLINDAJE DE COLUMNAS NUMÉRICAS PARA EVITAR GRÁFICOS EN BLANCO
+        columnas_numericas = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales', 'Month']
+        for col in columnas_numericas:
+            if col in df_trend.columns:
+                df_trend[col] = pd.to_numeric(df_trend[col], errors='coerce').fillna(0)
+
         if df_raw.empty: 
             df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
             
-            # LIMPIEZA DE NULOS
+            # PURGA DE NULOS Y 'PROYECTO'
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
                 df_raw[col] = df_raw[col].fillna('').astype(str)
-                
-            # DESTRUCCIÓN TOTAL DE 'PROYECTO'
-            mask_proyecto = (df_raw['Nivel Evento 1'].str.upper().str.contains('PROYECTO') | 
-                             df_raw['Nivel Evento 2'].str.upper().str.contains('PROYECTO') | 
-                             df_raw['Nivel Evento 3'].str.upper().str.contains('PROYECTO') | 
-                             df_raw['Nivel Evento 4'].str.upper().str.contains('PROYECTO'))
+            mask_proyecto = (df_raw['Nivel Evento 1'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 2'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 3'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 4'].str.upper().str.contains('PROYECTO'))
             df_raw = df_raw[~mask_proyecto].copy()
 
             def cat_estado(row):
                 t1 = row['Nivel Evento 1'].strip().upper()
                 return 'Producción' if ('PRODUCCION' in t1 or 'PRODUCCIÓN' in t1) else ('Parada Programada' if 'PARADA PROGRAMADA' in t1 else 'Falla/Gestión')
             
-            # LÓGICA DE ÁREAS (NIVEL 1 GESTIÓN vs NIVEL 2 RESTO)
             def cat_macro(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
                 n2 = row['Nivel Evento 2'].strip().title()
-                if 'GESTION' in n1 or 'GESTIÓN' in n1:
-                    return 'Gestión'
-                if 'FALLA' in n1:
-                    return n2 if n2 else 'Fallas Generales'
+                if 'GESTION' in n1 or 'GESTIÓN' in n1: return 'Gestión'
+                elif 'FALLA' in n1: return n2 if n2 else 'Fallas Generales'
                 return n1.title() if n1 else 'Sin Área'
             
-            # LÓGICA DE DETALLE DE FALLA PUNTUAL
+            # FALLA PUNTUAL: TOMA ESTRICTAMENTE EL ÚLTIMO NIVEL DISPONIBLE
             def get_det(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
                 n2 = row['Nivel Evento 2'].strip()
                 n3 = row['Nivel Evento 3'].strip()
                 n4 = row['Nivel Evento 4'].strip()
                 
-                if 'GESTION' in n1 or 'GESTIÓN' in n1:
-                    if n4: return n4
-                    if n3: return n3
-                    if n2: return n2
-                    return "Gestión Sin Detalle"
-                else:
-                    if n4: return n4
-                    if n3: return n3
-                    if n2: return n2
-                    return "Sin Detalle"
+                # Regla absoluta: El nivel más profundo gana.
+                if n4 and n4.lower() not in ['nan', 'none', 'null', '']: return n4
+                if n3 and n3.lower() not in ['nan', 'none', 'null', '']: return n3
+                if n2 and n2.lower() not in ['nan', 'none', 'null', '']: return n2
+                if n1 and n1.lower() not in ['nan', 'none', 'null', '']: return n1
+                return "Sin detalle"
                 
             df_raw['Estado_Global'] = df_raw.apply(cat_estado, axis=1)
             df_raw['Categoria_Macro'] = df_raw.apply(cat_macro, axis=1)
@@ -186,15 +181,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         
     for d in [df_m, df_t, df_r]: 
         if not d.empty and 'Máquina' in d.columns:
-            d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
-        else:
-            d['Grupo'] = 'Otro'
+            d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('NO_MAP')
+            if area.upper() == 'SOLDADURA': d.loc[d['Grupo'] == 'NO_MAP', 'Grupo'] = 'SOLDADURA NUEVA'
+            elif area.upper() == 'ESTAMPADO': d.loc[d['Grupo'] == 'NO_MAP', 'Grupo'] = 'OTRO ESTAMPADO'
+        else: d['Grupo'] = 'Otro'
             
-    # FILTRO AISLANTE DE PLANTAS (Evita que datos de Estampado sumen en Soldadura)
-    df_m = df_m[df_m['Grupo'].isin(grupos_area)]
-    df_t = df_t[df_t['Grupo'].isin(grupos_area)]
-    df_r = df_r[df_r['Grupo'].isin(grupos_area)]
-            
+    df_m = df_m[df_m['Grupo'].isin(grupos_area)]; df_t = df_t[df_t['Grupo'].isin(grupos_area)]; df_r = df_r[df_r['Grupo'].isin(grupos_area)]
     paginas = ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
 
     for target in paginas:
@@ -210,12 +202,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
-        kpis = {
-            "OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
-            "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, 
-            "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
-            "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0
-        }
+        kpis = {"OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0}
         
         for i, (lbl, val) in enumerate(kpis.items()):
             x = 10 + (i * 68.5); pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20)
@@ -224,16 +211,22 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.set_text_color(0)
 
         def add_trend_bar(df_in, col, title, x_pos, y_pos):
-            if df_in.empty or (col not in df_in.columns and col+'_Num' not in df_in.columns): return
+            if df_in.empty: return
             
-            # Agrupación segura en Pandas
             df_g = df_in.groupby('Month').sum(numeric_only=True).reset_index()
             
-            if col == 'OEE': df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r['T_Planificado'] > 0 else 0, axis=1)
-            elif col == 'PERFORMANCE': df_g['Val'] = df_g.apply(lambda r: r['Perf_Num'] / r['T_Operativo'] if r['T_Operativo'] > 0 else 0, axis=1)
-            elif col == 'DISPONIBILIDAD': df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r['T_Planificado'] > 0 else 0, axis=1)
-            elif col == 'CALIDAD': df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r['Totales'] > 0 else 0, axis=1)
-            
+            # Verificación blindada de nombres de columna
+            if col == 'OEE' and 'OEE_Num' in df_g.columns and 'T_Planificado' in df_g.columns: 
+                df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r['T_Planificado'] > 0 else 0, axis=1)
+            elif col == 'PERFORMANCE' and 'Perf_Num' in df_g.columns and 'T_Operativo' in df_g.columns: 
+                df_g['Val'] = df_g.apply(lambda r: r['Perf_Num'] / r['T_Operativo'] if r['T_Operativo'] > 0 else 0, axis=1)
+            elif col == 'DISPONIBILIDAD' and 'Disp_Num' in df_g.columns and 'T_Planificado' in df_g.columns: 
+                df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r['T_Planificado'] > 0 else 0, axis=1)
+            elif col == 'CALIDAD' and 'Cal_Num' in df_g.columns and 'Totales' in df_g.columns: 
+                df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r['Totales'] > 0 else 0, axis=1)
+            else:
+                return # Salir si las columnas numéricas no se generaron
+                
             if df_g['Val'].max() > 1.5: df_g['Val'] /= 100.0
             
             df_g['Mes_Str'] = df_g['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
@@ -241,14 +234,18 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             df_g['Color'] = df_g['Val'].apply(get_c)
             
             max_y = df_g['Val'].max() if not df_g.empty else 1
-            upper_limit = max(1.1, max_y * 1.3)
+            upper_limit = max(1.1, max_y * 1.3) if not pd.isna(max_y) else 1.1
 
             fig = go.Figure(data=[go.Bar(x=df_g['Mes_Str'], y=df_g['Val'], marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.8)', width=2)), text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.85)])
             fig.add_hline(y=0.75, line_dash="dash", line_color="#E74C3C", annotation_text="<b>75%</b>", annotation_font_color='black')
             fig.add_hline(y=0.85, line_dash="dash", line_color="#2ECC71", annotation_text="<b>85%</b>", annotation_font_color='black')
             fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
-            img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
+            
+            # Sintaxis Keywords exacta
+            img = save_chart(fig, w=600, h=220)
+            pdf.image(img, x=x_pos+2, y=y_pos+2, w=132)
+            os.remove(img)
 
         pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
         add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48)
@@ -263,7 +260,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
         
         if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
-            # FILTRO TOP 5: Se excluyen explicitamente Baño, Refrigerio y Descanso.
+            # FILTRO TOP 5: Se excluyen explícitamente Baño, Refrigerio y Descanso.
             excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
             mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
             df_f_puras = df_f[mask_puras]
@@ -280,7 +277,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                 pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
             
-            # BARRA MACRO: Agrupa por Gestión, Mantenimiento, etc. (Incluye minutos de Baño/Refrigerio en 'Gestión')
+            # BARRA MACRO: Agrupa por Gestión, Mantenimiento, etc.
             df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
             df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
             df_macro['Y'] = "Pérdidas"
@@ -288,7 +285,10 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
             fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
             fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
-            img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
+            
+            img_stack = save_chart(fig_stack, w=600, h=180)
+            pdf.image(img_stack, x=151, y=158, w=134)
+            os.remove(img_stack)
             
     return pdf.output(dest='S').encode('latin-1')
 
@@ -296,7 +296,8 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 # 4. MOTOR: INFORME PRODUCTIVO (CALIDAD)
 # ==========================================
 def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel, hs_rt):
-    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0); theme_hex = '#%02x%02x%02x' % theme_color
+    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0)
+    theme_hex = '#%02x%02x%02x' % theme_color
     scrap_c = '#002147' if area.upper() == "ESTAMPADO" else '#722F37' 
     rt_c = theme_hex
     grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
@@ -306,7 +307,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     
     for d in [df_t, df_p]: 
         if not d.empty and 'Máquina' in d.columns:
-            d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
+            d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('NO_MAP')
+            if area.upper() == 'SOLDADURA': d.loc[d['Grupo'] == 'NO_MAP', 'Grupo'] = 'SOLDADURA NUEVA'
+            elif area.upper() == 'ESTAMPADO': d.loc[d['Grupo'] == 'NO_MAP', 'Grupo'] = 'OTRO ESTAMPADO'
         else: d['Grupo'] = 'Otro'
 
     # FILTRO AISLANTE DE PLANTAS
@@ -327,9 +330,10 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
         if df_t_target.empty: continue
         
-        df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum().reset_index()
-        df_ev['% Scrap'] = df_ev.apply(lambda r: (r['Observadas'] / r['Totales'] * 100) if r['Totales'] > 0 else 0, axis=1).round(2)
-        df_ev['% RT'] = df_ev.apply(lambda r: (r['Retrabajo'] / r['Totales'] * 100) if r['Totales'] > 0 else 0, axis=1).round(2)
+        df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum(numeric_only=True).reset_index()
+        df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
+        df_ev['% Scrap'] = ((df_ev['Observadas'] / df_ev['Totales_Div']) * 100).round(2)
+        df_ev['% RT'] = ((df_ev['Retrabajo'] / df_ev['Totales_Div']) * 100).round(2)
         meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
@@ -341,15 +345,16 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         for i, f in enumerate([f1, f2, f3]): 
             max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
             if i == 0: upper_limit = max_y * 1.3 if max_y > 0 else 1
-            else: upper_limit = max(0.2, max_y * 1.3)
+            else: upper_limit = 0.2 
             f.update_yaxes(range=[0, upper_limit])
             f.update_layout(title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
             f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
         h_box = 60; pdf.draw_panel(10, 22, 135, h_box); pdf.draw_panel(10, 85, 135, h_box); pdf.draw_panel(10, 148, 135, h_box)
-        i1 = save_chart(f1, 550, 260); pdf.image(i1, 11, 23, 133, h_box-2); os.remove(i1)
-        i2 = save_chart(f2, 550, 260); pdf.image(i2, 11, 86, 133, h_box-2); os.remove(i2)
-        i3 = save_chart(f3, 550, 260); pdf.image(i3, 11, 149, 133, h_box-2); os.remove(i3)
+        
+        i1 = save_chart(f1, w=550, h=260); pdf.image(i1, x=11, y=23, w=133, h=h_box-2); os.remove(i1)
+        i2 = save_chart(f2, w=550, h=260); pdf.image(i2, x=11, y=86, w=133, h=h_box-2); os.remove(i2)
+        i3 = save_chart(f3, w=550, h=260); pdf.image(i3, x=11, y=149, w=133, h=h_box-2); os.remove(i3)
 
         h_br = 83.5; pdf.draw_panel(150, 22, 135, h_br); pdf.draw_panel(150, 108.5, 135, h_br)
         if not df_p_target.empty:
@@ -367,8 +372,8 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
                 f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
-            i4 = save_chart(f4, 550, 330); pdf.image(i4, 151, 23, 133, h_br-2); os.remove(i4)
-            i5 = save_chart(f5, 550, 330); pdf.image(i5, 151, 109.5, 133, h_br-2); os.remove(i5)
+            i4 = save_chart(f4, w=550, h=330); pdf.image(i4, x=151, y=23, w=133, h=h_br-2); os.remove(i4)
+            i5 = save_chart(f5, w=550, h=330); pdf.image(i5, x=151, y=109.5, w=133, h=h_br-2); os.remove(i5)
             
         pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
         pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
