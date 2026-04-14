@@ -89,59 +89,66 @@ def save_chart(fig, w=600, h=300):
         fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (SQL BLINDADO Y SEPARADO)
+# 2. CARGA DE DATOS (NUEVO MOTOR PANDAS)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
     try:
         conn = st.connection("wii_bi", type="sql")
         
-        # BLINDAJE TEMPORAL: Captura hasta el último milisegundo del mes para no perder fallas.
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
+        # Para los gráficos, extraemos desde el 1 de Enero del año actual hasta hoy, EN FORMATO DIARIO
+        ini_year_str = f"{anio}-01-01 00:00:00"
         
+        # 1. Extracción de Datos
         q_metrics = f"SELECT c.Name as Máquina, COALESCE(SUM(p.Good), 0) as Buenas, COALESCE(SUM(p.Rework), 0) as Retrabajo, COALESCE(SUM(p.Scrap), 0) as Observadas, COALESCE(SUM(p.ProductiveTime), 0) as T_Operativo, COALESCE(SUM(p.DownTime), 0) as T_Parada, COALESCE((SUM(p.Performance * p.ProductiveTime) / NULLIF(SUM(p.ProductiveTime), 0)), 0) as PERFORMANCE, COALESCE((SUM(p.Availability * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as DISPONIBILIDAD, COALESCE((SUM(p.Quality * (p.Good + p.Rework + p.Scrap)) / NULLIF(SUM(p.Good + p.Rework + p.Scrap), 0)), 0) as CALIDAD, COALESCE((SUM(p.Oee * (p.ProductiveTime + p.DownTime)) / NULLIF(SUM(p.ProductiveTime + p.DownTime), 0)), 0) as OEE FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name"
         q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
-        
-        q_trend_oee = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
-        q_trend_piezas = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_piezas = f"SELECT c.Name as Máquina, pr.Code as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Date BETWEEN '{ini_str}' AND '{fin_str}' GROUP BY c.Name, pr.Code"
+
+        # TENDENCIAS: Se usan las tablas DIARIAS (PROD_D_03) para evitar los nulos de PROD_M_03
+        q_trend_oee_daily = f"SELECT p.Date, c.Name as Máquina, p.ProductiveTime as T_Operativo, p.DownTime as T_Parada, (p.ProductiveTime + p.DownTime) as T_Planificado, (p.Performance * p.ProductiveTime) as Perf_Num, (p.Availability * (p.ProductiveTime + p.DownTime)) as Disp_Num, (p.Quality * (p.Good + p.Rework + p.Scrap)) as Cal_Num, (p.Oee * (p.ProductiveTime + p.DownTime)) as OEE_Num FROM PROD_D_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_year_str}' AND '{fin_str}'"
+        q_trend_piezas_daily = f"SELECT p.Date, c.Name as Máquina, p.Good as Buenas, p.Rework as Retrabajo, p.Scrap as Observadas, (p.Good + p.Rework + p.Scrap) as Totales FROM PROD_D_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Date BETWEEN '{ini_year_str}' AND '{fin_str}'"
 
         df_metrics = conn.query(q_metrics).fillna(0)
         df_raw = conn.query(q_event)
-        df_trend_oee = conn.query(q_trend_oee)
-        df_trend_piezas = conn.query(q_trend_piezas)
         df_piezas = conn.query(q_piezas).fillna(0)
+        df_t_oee_raw = conn.query(q_trend_oee_daily)
+        df_t_pz_raw = conn.query(q_trend_piezas_daily)
 
-        # CRÍTICO: Forzar conversión a numérico puro (float) antes de agrupar para evitar que Pandas elimine las columnas
-        if not df_trend_oee.empty:
-            for col in ['Month', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']:
-                if col in df_trend_oee.columns:
-                    df_trend_oee[col] = pd.to_numeric(df_trend_oee[col], errors='coerce').fillna(0)
-                    
-        if not df_trend_piezas.empty:
-            for col in ['Month', 'Buenas', 'Retrabajo', 'Observadas', 'Totales']:
-                if col in df_trend_piezas.columns:
-                    df_trend_piezas[col] = pd.to_numeric(df_trend_piezas[col], errors='coerce').fillna(0)
+        # 2. Agrupación segura de tendencias mensuales por Python (Imposible que devuelva gráficos vacíos si hay datos diarios)
+        df_trend_oee = pd.DataFrame()
+        if not df_t_oee_raw.empty:
+            df_t_oee_raw['Date'] = pd.to_datetime(df_t_oee_raw['Date'])
+            df_t_oee_raw['Month'] = df_t_oee_raw['Date'].dt.month
+            cols_oee = ['T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']
+            for c in cols_oee: 
+                if c in df_t_oee_raw.columns: df_t_oee_raw[c] = pd.to_numeric(df_t_oee_raw[c], errors='coerce').fillna(0)
+            df_trend_oee = df_t_oee_raw.groupby(['Month', 'Máquina'])[cols_oee].sum().reset_index()
+
+        df_trend_piezas = pd.DataFrame()
+        if not df_t_pz_raw.empty:
+            df_t_pz_raw['Date'] = pd.to_datetime(df_t_pz_raw['Date'])
+            df_t_pz_raw['Month'] = df_t_pz_raw['Date'].dt.month
+            cols_pz = ['Buenas', 'Retrabajo', 'Observadas', 'Totales']
+            for c in cols_pz: 
+                if c in df_t_pz_raw.columns: df_t_pz_raw[c] = pd.to_numeric(df_t_pz_raw[c], errors='coerce').fillna(0)
+            df_trend_piezas = df_t_pz_raw.groupby(['Month', 'Máquina'])[cols_pz].sum().reset_index()
 
         if not df_trend_oee.empty and not df_trend_piezas.empty:
             df_trend = pd.merge(df_trend_piezas, df_trend_oee, on=['Month', 'Máquina'], how='outer').fillna(0)
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
+        # 3. Procesamiento de Fallas (Mantiene la perfección del Nivel 4 y Gestión)
         if df_raw.empty: 
             df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
-            
-            # TRATAMIENTO ESTRICTO COMO TEXTO PARA LAS FALLAS
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
-                if col in df_raw.columns:
-                    df_raw[col] = df_raw[col].fillna('').astype(str)
-                else:
-                    df_raw[col] = ''
+                if col in df_raw.columns: df_raw[col] = df_raw[col].fillna('').astype(str)
+                else: df_raw[col] = ''
                     
-            # PURGA DE PROYECTO DIRECTO EN PANDAS
             mask_proyecto = (df_raw['Nivel Evento 1'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 2'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 3'].str.upper().str.contains('PROYECTO') | df_raw['Nivel Evento 4'].str.upper().str.contains('PROYECTO'))
             df_raw = df_raw[~mask_proyecto].copy()
 
@@ -155,11 +162,10 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
             def cat_macro(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
                 n2 = row['Nivel Evento 2'].strip().title()
-                if 'GESTION' in n1 or 'GESTIÓN' in n1: return 'Gestión'
+                if 'GESTION' in n1 or 'GESTIÓN' in n1 or 'GESTION' in n2.upper() or 'GESTIÓN' in n2.upper(): return 'Gestión'
                 elif 'FALLA' in n1: return n2 if n2 else 'Fallas Generales'
                 return n1.title() if n1 else 'Sin Área'
             
-            # REGLA ABSOLUTA: El nivel más profundo siempre es la Causa Raíz
             def get_det(row):
                 n1 = row['Nivel Evento 1'].strip().upper()
                 n2 = row['Nivel Evento 2'].strip()
@@ -215,12 +221,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
         t_plan = df_m_target['T_Operativo'].sum() + df_m_target['T_Parada'].sum() if not df_m_target.empty else 0
         t_op = df_m_target['T_Operativo'].sum() if not df_m_target.empty else 0
-        kpis = {
-            "OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
-            "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, 
-            "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, 
-            "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0
-        }
+        kpis = {"OEE": (df_m_target['OEE'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "PERFORMANCE": (df_m_target['PERFORMANCE'] * df_m_target['T_Operativo']).sum() / t_op if t_op > 0 else 0, "DISPONIBILIDAD": (df_m_target['DISPONIBILIDAD'] * (df_m_target['T_Operativo'] + df_m_target['T_Parada'])).sum() / t_plan if t_plan > 0 else 0, "CALIDAD": df_m_target['CALIDAD'].mean() if not df_m_target.empty else 0}
         
         for i, (lbl, val) in enumerate(kpis.items()):
             x = 10 + (i * 68.5); pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20)
@@ -232,8 +233,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             if df_in.empty or (col not in df_in.columns and col+'_Num' not in df_in.columns): return
             
             df_g = df_in.groupby('Month').sum(numeric_only=True).reset_index()
-            if 'Month' in df_g.columns:
-                df_g['Month'] = df_g['Month'].astype(int)
             
             if col == 'OEE' and 'OEE_Num' in df_g.columns: 
                 df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
@@ -336,7 +335,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
         if df_t_target.empty: continue
         
-        df_ev = df_t_target.groupby('Month').sum(numeric_only=True).reset_index()
+        df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum(numeric_only=True).reset_index()
         if 'Month' in df_ev.columns: df_ev['Month'] = df_ev['Month'].astype(int)
         
         df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
