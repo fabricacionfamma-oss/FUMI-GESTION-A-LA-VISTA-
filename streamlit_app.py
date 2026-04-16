@@ -213,6 +213,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
         else: d['Grupo'] = 'Otro'
             
+    # --- LA MAGIA: Guardamos copias INTACTAS del 100% de la base de datos ---
+    df_m_all = df_m.copy()
+    df_t_all = df_t.copy()
+    df_r_all = df_r.copy()
+
+    # Filtramos para las sub-páginas
     df_m = df_m[df_m['Grupo'].isin(grupos_area)]
     df_t = df_t[df_t['Grupo'].isin(grupos_area)]
     df_r = df_r[df_r['Grupo'].isin(grupos_area)]
@@ -223,13 +229,16 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
         if target == 'GENERAL':
-            # Solo excluimos Celdas Renault si el reporte es estrictamente de "SOLDADURA"
             if area.upper() == 'SOLDADURA':
                 df_m_target = df_m[df_m['Grupo'] != 'CELDAS RENAULT']
                 df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
                 df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
+            elif area.upper() == 'GLOBAL':
+                # --- AL GLOBAL LE PASAMOS LA BD SIN FILTRAR (Igual que tu Dashboard) ---
+                df_m_target = df_m_all
+                df_t_target = df_t_all
+                df_r_target = df_r_all
             else:
-                # Si es GLOBAL o ESTAMPADO, no filtramos nada.
                 df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
         else:
             df_m_target = df_m[df_m['Grupo'] == target]
@@ -310,7 +319,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             
             if df_g['Val'].max() > 1.5: df_g['Val'] /= 100.0
 
-            # --- CÁLCULO DE YTD (ACUMULADO) ---
             ytd_v = 0
             if col == 'OEE':
                 ytd_v = df_valid['OEE_Num'].sum() / df_valid['T_Planificado'].sum() if df_valid['T_Planificado'].sum() > 0 else 0
@@ -348,7 +356,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             w_pdf = 132 if not draw_large else 134
             img = save_chart(fig, w_img, h_img); pdf.image(img, x=x_pos+2, y=y_pos+2, w=w_pdf); os.remove(img)
 
-        # Lógica de distribución: Si es global, gráficas más grandes y obviamos top de fallos
         if area.upper() == "GLOBAL":
             pdf.draw_panel(10, 48, 136, 75); pdf.draw_panel(149, 48, 138, 75)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, 0.75, 0.85, draw_large=True)
