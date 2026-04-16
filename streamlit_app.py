@@ -223,12 +223,13 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
         if target == 'GENERAL':
-            if area.upper() == 'SOLDADURA' or area.upper() == 'GLOBAL':
-                # Filtramos celdas Renault según lo requiera Fumiscor (ejemplo mantenido de tu código original)
+            # Solo excluimos Celdas Renault si el reporte es estrictamente de "SOLDADURA"
+            if area.upper() == 'SOLDADURA':
                 df_m_target = df_m[df_m['Grupo'] != 'CELDAS RENAULT']
                 df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
                 df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
             else:
+                # Si es GLOBAL o ESTAMPADO, no filtramos nada.
                 df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
         else:
             df_m_target = df_m[df_m['Grupo'] == target]
