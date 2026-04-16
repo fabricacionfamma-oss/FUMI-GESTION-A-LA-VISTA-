@@ -194,8 +194,15 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
 # 3. MOTOR: GESTIÓN A LA VISTA (DISPONIBILIDAD)
 # ==========================================
 def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw, df_trend):
-    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0); theme_hex = '#%02x%02x%02x' % theme_color
-    grupos_area = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
+    # Lógica condicional para el reporte Global
+    if area.upper() == "ESTAMPADO":
+        theme_color = (15, 76, 129); grupos_area = GRUPOS_ESTAMPADO
+    elif area.upper() == "SOLDADURA":
+        theme_color = (211, 84, 0); grupos_area = GRUPOS_SOLDADURA
+    else:
+        theme_color = (40, 40, 40); grupos_area = GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA
+
+    theme_hex = '#%02x%02x%02x' % theme_color
     mapa_limpio = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
     pdf = ReportePDF(f"GESTIÓN A LA VISTA - {area}", label_reporte, theme_color)
     
@@ -206,14 +213,18 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
         else: d['Grupo'] = 'Otro'
             
-    df_m = df_m[df_m['Grupo'].isin(grupos_area)]; df_t = df_t[df_t['Grupo'].isin(grupos_area)]; df_r = df_r[df_r['Grupo'].isin(grupos_area)]
-    paginas = ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
+    df_m = df_m[df_m['Grupo'].isin(grupos_area)]
+    df_t = df_t[df_t['Grupo'].isin(grupos_area)]
+    df_r = df_r[df_r['Grupo'].isin(grupos_area)]
+    
+    paginas = ['GENERAL'] if area.upper() == "GLOBAL" else ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
         if target == 'GENERAL':
-            if area.upper() == 'SOLDADURA':
+            if area.upper() == 'SOLDADURA' or area.upper() == 'GLOBAL':
+                # Filtramos celdas Renault según lo requiera Fumiscor (ejemplo mantenido de tu código original)
                 df_m_target = df_m[df_m['Grupo'] != 'CELDAS RENAULT']
                 df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
                 df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
@@ -225,7 +236,10 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             df_r_target = df_r[df_r['Grupo'] == target]
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
-        pdf.cell(40, 6, "PERIODO", 1, 0, 'C', fill=True); pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True); pdf.cell(40, 6, "INFORME", 1, 1, 'C', fill=True)
+        pdf.cell(40, 6, "PERIODO", 1, 0, 'C', fill=True)
+        pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}" if area.upper() != "GLOBAL" else "PLANTA GLOBAL FUMISCOR - RESUMEN GENERAL", 1, 0, 'C', fill=True)
+        pdf.cell(40, 6, "INFORME", 1, 1, 'C', fill=True)
+        
         pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
         pdf.cell(40, 6, label_reporte, 1, 0, 'C', fill=True); pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True); pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C', fill=True)
 
@@ -256,19 +270,9 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         
         for i, (lbl, data) in enumerate(kpis.items()):
             v = data["val"]
-            c_min = data["min"]
-            c_max = data["max"]
-            
-            # Lógica de semáforo para KPIs
-            if v < c_min:
-                bg_col = (231, 76, 60) # Rojo
-                txt_col = 255
-            elif v < c_max:
-                bg_col = (241, 196, 15) # Amarillo
-                txt_col = 0 # Texto negro para mejor legibilidad en amarillo
-            else:
-                bg_col = (46, 204, 113) # Verde
-                txt_col = 255
+            if v < data["min"]: bg_col, txt_col = (231, 76, 60), 255
+            elif v < data["max"]: bg_col, txt_col = (241, 196, 15), 0
+            else: bg_col, txt_col = (46, 204, 113), 255
 
             x = 10 + (i * 68.5)
             pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20, bg_color=bg_col)
@@ -276,7 +280,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{v*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
-        def add_trend_bar(df_in, col, title, x_pos, y_pos, min_t, max_t):
+        def add_trend_bar(df_in, col, title, x_pos, y_pos, min_t, max_t, draw_large=False):
             if df_in.empty: return
             
             cols_req = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales']
@@ -323,7 +327,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             df_g['Mes_Str'] = df_g['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
             df_g['Color'] = df_g['Val'].apply(get_c)
             
-            # --- AGREGAR FILA ACUMULADA AL FINAL ---
             ytd_row = pd.DataFrame([{'Month': 99, 'Mes_Str': 'Acum.', 'Val': ytd_v, 'Color': get_c(ytd_v)}])
             df_g = pd.concat([df_g, ytd_row], ignore_index=True)
 
@@ -334,53 +337,64 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             fig.add_hline(y=min_t, line_dash="dash", line_color="#E74C3C", annotation_text=f"<b>{min_t*100:.0f}%</b>", annotation_font_color='black')
             fig.add_hline(y=max_t, line_dash="dash", line_color="#2ECC71", annotation_text=f"<b>{max_t*100:.0f}%</b>", annotation_font_color='black')
             
-            # --- SEPARADOR VERTICAL PARA EL ACUMULADO ---
-            # Posicionamos la línea entre el penúltimo elemento (último mes) y el último (Acum.)
             if len(df_g) > 1:
                 fig.add_vline(x=len(df_g) - 1.5, line_width=2, line_dash="dash", line_color="rgba(0,0,0,0.4)")
             
             fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=30, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
-            img = save_chart(fig, 600, 220); pdf.image(img, x=x_pos+2, y=y_pos+2, w=132); os.remove(img)
+            
+            w_img, h_img = (600, 300) if draw_large else (600, 220)
+            w_pdf = 132 if not draw_large else 134
+            img = save_chart(fig, w_img, h_img); pdf.image(img, x=x_pos+2, y=y_pos+2, w=w_pdf); os.remove(img)
 
-        pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
-        add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, 0.75, 0.85)
-        add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, 0.80, 0.90) 
-        
-        pdf.draw_panel(10, 102, 136, 52); pdf.draw_panel(149, 102, 138, 52)
-        add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102, 0.75, 0.85)
-        add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102, 0.75, 0.85)
-        
-        pdf.draw_panel(10, 156, 136, 45); pdf.draw_panel(149, 156, 138, 45)
-        pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
-        
-        df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
-        
-        if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
-            excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
-            mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
-            df_f_puras = df_f[mask_puras]
+        # Lógica de distribución: Si es global, gráficas más grandes y obviamos top de fallos
+        if area.upper() == "GLOBAL":
+            pdf.draw_panel(10, 48, 136, 75); pdf.draw_panel(149, 48, 138, 75)
+            add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, 0.75, 0.85, draw_large=True)
+            add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, 0.80, 0.90, draw_large=True) 
             
-            top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
+            pdf.draw_panel(10, 126, 136, 75); pdf.draw_panel(149, 126, 138, 75)
+            add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 126, 0.75, 0.85, draw_large=True)
+            add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 126, 0.75, 0.85, draw_large=True)
+        else:
+            pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
+            add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, 0.75, 0.85)
+            add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, 0.80, 0.90) 
             
-            pdf.set_xy(10, 162); pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(*theme_color); pdf.set_text_color(255)
-            pdf.cell(76, 5, "FALLO", border=1, fill=True); pdf.cell(30, 5, "MINUTOS", border=1, align='C', fill=True); pdf.cell(30, 5, "% TOTAL", border=1, align='C', ln=True, fill=True)
-            pdf.set_font("Arial", '', 8); pdf.set_text_color(0); pdf.set_fill_color(255, 255, 255)
+            pdf.draw_panel(10, 102, 136, 52); pdf.draw_panel(149, 102, 138, 52)
+            add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102, 0.75, 0.85)
+            add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102, 0.75, 0.85)
             
-            t_total = df_f['Tiempo (Min)'].sum()
-            for _, r in top5.iterrows():
-                pdf.set_x(10); pdf.cell(76, 6, clean_text(str(r['Detalle_Final']))[:45], border=1, fill=True)
-                pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
-                pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
+            pdf.draw_panel(10, 156, 136, 45); pdf.draw_panel(149, 156, 138, 45)
+            pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
             
-            df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
-            df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
-            df_macro['Y'] = "Pérdidas"
+            df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
             
-            fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
-            fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
-            fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
-            img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
+            if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
+                excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
+                mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
+                df_f_puras = df_f[mask_puras]
+                
+                top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
+                
+                pdf.set_xy(10, 162); pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(*theme_color); pdf.set_text_color(255)
+                pdf.cell(76, 5, "FALLO", border=1, fill=True); pdf.cell(30, 5, "MINUTOS", border=1, align='C', fill=True); pdf.cell(30, 5, "% TOTAL", border=1, align='C', ln=True, fill=True)
+                pdf.set_font("Arial", '', 8); pdf.set_text_color(0); pdf.set_fill_color(255, 255, 255)
+                
+                t_total = df_f['Tiempo (Min)'].sum()
+                for _, r in top5.iterrows():
+                    pdf.set_x(10); pdf.cell(76, 6, clean_text(str(r['Detalle_Final']))[:45], border=1, fill=True)
+                    pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
+                    pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
+                
+                df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
+                df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
+                df_macro['Y'] = "Pérdidas"
+                
+                fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
+                fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
+                fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
+                img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
             
     return pdf.output(dest='S').encode('latin-1')
 
@@ -404,6 +418,14 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
 
     df_t = df_t[df_t['Grupo'].isin(grupos)]; df_p = df_p[df_p['Grupo'].isin(grupos)]
     paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
+
+    # Definir valores de objetivo exactos según el área
+    if area.upper() == "ESTAMPADO":
+        target_scrap = 0.50
+        target_rt = 2.00
+    else:
+        target_scrap = 0.30
+        target_rt = 2.00
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
@@ -434,15 +456,26 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
 
-        f1 = px.bar(df_ev, x='Mes_Str', y='Totales', color_discrete_sequence=[theme_hex]); f1.update_traces(texttemplate='<b>%{y:.3s}</b>')
-        f2 = px.bar(df_ev, x='Mes_Str', y='% Scrap', color_discrete_sequence=[theme_hex]); f2.update_traces(texttemplate='<b>%{y:.2f}%</b>')
-        f3 = px.bar(df_ev, x='Mes_Str', y='% RT', color_discrete_sequence=[theme_hex]); f3.update_traces(texttemplate='<b>%{y:.2f}%</b>')
+        # LÓGICA DE COLORES DE BARRAS SI PASA EL OBJETIVO
+        df_ev['Color_Scrap'] = df_ev['% Scrap'].apply(lambda x: '#E74C3C' if x > target_scrap else theme_hex)
+        df_ev['Color_RT'] = df_ev['% RT'].apply(lambda x: '#E74C3C' if x > target_rt else theme_hex)
+
+        f1 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['Totales'], marker_color=theme_hex, text=df_ev['Totales'], texttemplate='<b>%{text:.3s}</b>')])
+        f2 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['% Scrap'], marker_color=df_ev['Color_Scrap'], text=df_ev['% Scrap'], texttemplate='<b>%{text:.2f}%</b>')])
+        f3 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['% RT'], marker_color=df_ev['Color_RT'], text=df_ev['% RT'], texttemplate='<b>%{text:.2f}%</b>')])
         
         titles = ["PIEZAS PRODUCIDAS MES A MES", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
         for i, f in enumerate([f1, f2, f3]): 
             max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
-            if i == 0: upper_limit = max_y * 1.3 if max_y > 0 else 1
-            else: upper_limit = max(0.2, max_y * 1.3)
+            
+            if i == 0: 
+                upper_limit = max_y * 1.3 if max_y > 0 else 1
+            else: 
+                current_target = target_scrap if i == 1 else target_rt
+                upper_limit = max(0.2, max_y * 1.3, current_target * 1.5)
+                # Línea de objetivo
+                f.add_hline(y=current_target, line_dash="dash", line_width=2, line_color="#E74C3C", annotation_text=f"<b>Obj: {current_target}%</b>", annotation_font_color='black')
+                
             f.update_yaxes(range=[0, upper_limit])
             f.update_layout(title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
             f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
@@ -471,7 +504,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             i4 = save_chart(f4, w=550, h=330); pdf.image(i4, x=151, y=23, w=133, h=h_br-2); os.remove(i4)
             i5 = save_chart(f5, w=550, h=330); pdf.image(i5, x=151, y=109.5, w=133, h=h_br-2); os.remove(i5)
             
-        if target == 'GENERAL':
+        if target == 'GENERAL' and area.upper() == 'ESTAMPADO':
             pdf.draw_panel(150, 196, 135, 12, 2, (240,240,240)); pdf.set_xy(150, 196); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(0); pdf.cell(67.5, 12, "HS DE RT", 0, 0, 'C')
             pdf.draw_panel(217.5, 196, 67.5, 12, 2, (255,255,255)); pdf.set_xy(217.5, 196); pdf.cell(67.5, 12, f"{hs_rt:.1f}", 0, 1, 'C')
 
@@ -495,29 +528,62 @@ ini = pd.to_datetime(f"{a_sel}-{m_sel}-01")
 fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}")
 lab = f"{m_sel}/{a_sel}"
 
-df_m, df_r, df_t, df_p = fetch_data_from_db(ini, fin, m_sel, a_sel)
+with st.spinner("Conectando con la base de datos de Fumiscor..."):
+    df_m, df_r, df_t, df_p = fetch_data_from_db(ini, fin, m_sel, a_sel)
 
 st.write("### 2. Datos Manuales (Informe Productivo)")
-hs_rt = st.number_input("Horas de RT:", min_value=0.0, max_value=1000.0, value=0.0, step=1.0)
+hs_rt = st.number_input("Horas de RT (Solo válido para Estampado General):", min_value=0.0, max_value=1000.0, value=0.0, step=1.0)
 
 st.divider()
-st.write("### 3. Descargar Reportes")
-c_d, c_p = st.columns(2)
+st.write("### 3. Preparar y Descargar Reportes")
+c_d, c_p, c_g = st.columns(3)
 
+# Lógica de carga On-Demand usando st.session_state
 with c_d:
-    st.markdown("#### ⚙️ Informe de Disponibilidad (OEE)")
-    if st.button("Disponibilidad ESTAMPADO", use_container_width=True): 
-        with st.spinner("Generando..."):
-            st.download_button("📥 Bajar PDF Estampado", crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t), "Disp_Estampado.pdf")
-    if st.button("Disponibilidad SOLDADURA", use_container_width=True): 
-        with st.spinner("Generando..."):
-            st.download_button("📥 Bajar PDF Soldadura", crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t), "Disp_Soldadura.pdf")
+    st.markdown("#### ⚙️ Disponibilidad (OEE)")
+    if not df_m.empty:
+        if st.button("⚙️ Preparar PDF Estampado", use_container_width=True):
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_oee_est_fumis'] = crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t)
+        if 'pdf_oee_est_fumis' in st.session_state:
+            st.download_button("📥 Bajar PDF Estampado", data=st.session_state['pdf_oee_est_fumis'], file_name="Disp_Estampado.pdf", mime="application/pdf", use_container_width=True)
+            
+        st.write("---")
+        
+        if st.button("⚙️ Preparar PDF Soldadura", use_container_width=True):
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_oee_sol_fumis'] = crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t)
+        if 'pdf_oee_sol_fumis' in st.session_state:
+            st.download_button("📥 Bajar PDF Soldadura", data=st.session_state['pdf_oee_sol_fumis'], file_name="Disp_Soldadura.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        st.error("No hay datos.")
 
 with c_p:
     st.markdown("#### 🏭 Informe Productivo (Calidad)")
-    if st.button("Productivo ESTAMPADO", use_container_width=True): 
-        with st.spinner("Generando..."):
-            st.download_button("📥 Bajar PDF Estampado", crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt), "Prod_Estampado.pdf")
-    if st.button("Productivo SOLDADURA", use_container_width=True): 
-        with st.spinner("Generando..."):
-            st.download_button("📥 Bajar PDF Soldadura", crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt), "Prod_Soldadura.pdf")
+    if not df_t.empty:
+        if st.button("🏭 Preparar Prod. Estampado", use_container_width=True):
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_prod_est_fumis'] = crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt)
+        if 'pdf_prod_est_fumis' in st.session_state:
+            st.download_button("📥 Bajar Prod. Estampado", data=st.session_state['pdf_prod_est_fumis'], file_name="Prod_Estampado.pdf", mime="application/pdf", use_container_width=True)
+        
+        st.write("---")
+        
+        if st.button("🏭 Preparar Prod. Soldadura", use_container_width=True):
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_prod_sol_fumis'] = crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt)
+        if 'pdf_prod_sol_fumis' in st.session_state:
+            st.download_button("📥 Bajar Prod. Soldadura", data=st.session_state['pdf_prod_sol_fumis'], file_name="Prod_Soldadura.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        st.error("No hay datos.")
+
+with c_g:
+    st.markdown("#### 🌎 Reporte Maestro")
+    if not df_m.empty:
+        if st.button("🌎 Preparar PDF Global", use_container_width=True):
+            with st.spinner("Generando documento maestro..."):
+                st.session_state['pdf_oee_glob_fumis'] = crear_pdf_gestion_a_la_vista("GLOBAL", lab, df_m, df_r, df_t)
+        if 'pdf_oee_glob_fumis' in st.session_state:
+            st.download_button("📥 Bajar PDF Global", data=st.session_state['pdf_oee_glob_fumis'], file_name="Disp_Global_Fumiscor.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        st.error("No hay datos.")
