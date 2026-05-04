@@ -49,6 +49,13 @@ MAQUINAS_MAP = {
 GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora', 'OTRO ESTAMPADO']
 GRUPOS_SOLDADURA = ['PRP', 'DOBLADORAS', 'CELDAS RENAULT', 'CELDAS']
 
+# --- TRADUCTOR EXACTO DE LÍNEAS OFICIALES DE WIIDEM A REPORTES ---
+MAPEO_LINEAS_WIIDEM = {
+    "GMS-01 - ROBOT": "CELDAS",          # Según Wiidem
+    "CELDAS NUEVAS": "CELDAS RENAULT",   # Según Wiidem
+    "BALANCINES": "BALANCIN"
+}
+
 # ==========================================
 # 1. FUNCIONES AUXILIARES Y PDF
 # ==========================================
@@ -124,7 +131,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         q_trend_piezas_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
 
-        # --- NUEVA CONSULTA: EXTRACCIÓN OFICIAL PARA LOS DIALES ---
+        # --- EXTRACCIÓN OFICIAL PARA LOS DIALES ---
         q_m06 = f"SELECT 'GLOBAL' as Nivel, 'GLOBAL' as Grupo, Performance, Availability as Disp, Quality as Cal, Oee FROM PROD_M_06 WHERE Year = {anio} AND Month = {mes}"
         q_m05 = f"SELECT 'FABRICA' as Nivel, UPPER(f.Name) as Grupo, p.Performance, p.Availability as Disp, p.Quality as Cal, p.Oee FROM PROD_M_05 p JOIN FACTORY f ON p.FactoryId = f.FactoryId WHERE p.Year = {anio} AND p.Month = {mes}"
         q_m04 = f"SELECT 'LINEA' as Nivel, UPPER(l.Name) as Grupo, p.Performance, p.Availability as Disp, p.Quality as Cal, p.Oee FROM PROD_M_04 p JOIN LINE l ON p.LineId = l.LineId WHERE p.Year = {anio} AND p.Month = {mes}"
@@ -135,6 +142,14 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_trend_oee = conn.query(q_trend_oee_monthly).fillna(0)
         df_trend_piezas = conn.query(q_trend_piezas_monthly).fillna(0)
         df_oficial = pd.concat([conn.query(q_m06).fillna(0), conn.query(q_m05).fillna(0), conn.query(q_m04).fillna(0)], ignore_index=True)
+
+        # APLICACIÓN DE MAPEO A LA TABLA OFICIAL (AQUÍ ESTÁ LA CORRECCIÓN)
+        if not df_oficial.empty:
+            df_oficial['Grupo'] = df_oficial.apply(
+                lambda r: MAPEO_LINEAS_WIIDEM.get(str(r['Grupo']).strip().upper(), str(r['Grupo']).strip().upper()) 
+                if r['Nivel'] == 'LINEA' else str(r['Grupo']).strip().upper(), 
+                axis=1
+            )
 
         cols_metrics = ['Buenas', 'Retrabajo', 'Observadas', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']
         for c in cols_metrics:
@@ -274,7 +289,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 else:
                     row = df_oficial[(df_oficial['Nivel'] == 'FABRICA') & (df_oficial['Grupo'].str.contains(area.upper(), na=False))]
             else:
-                row = df_oficial[(df_oficial['Nivel'] == 'LINEA') & (df_oficial['Grupo'].str.contains(target, na=False))]
+                row = df_oficial[(df_oficial['Nivel'] == 'LINEA') & (df_oficial['Grupo'] == target)]
                 
             if not row.empty:
                 v_oee = row['Oee'].values[0]
