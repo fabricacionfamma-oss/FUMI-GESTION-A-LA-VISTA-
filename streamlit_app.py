@@ -395,11 +395,13 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                     pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                     pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
                 
+                # --- NUEVA LEYENDA DEL GRÁFICO (ÁREA + HORAS + PORCENTAJE) ---
                 df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
                 df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
                 df_macro['Y'] = "Pérdidas"
+                df_macro['Leyenda'] = df_macro.apply(lambda r: f"{r['Categoria_Macro']} ({r['Tiempo (Min)']/60:.1f} hs | {r['%']:.1%})", axis=1)
                 
-                fig_stack = px.bar(df_macro, x='%', y='Y', color='Categoria_Macro', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
+                fig_stack = px.bar(df_macro, x='%', y='Y', color='Leyenda', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
                 fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
                 fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
                 img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
@@ -416,6 +418,9 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     rt_c = theme_hex
     grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
     pdf = ReportePDF(f"INFORME PRODUCTIVO - {area}", label_reporte, theme_color)
+    
+    mapa_limpio = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
+    grupos_upper = [g.upper() for g in grupos]
     
     df_t = df_trend.copy(); df_p = df_piezas.copy(); mapa = {k.upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
     
