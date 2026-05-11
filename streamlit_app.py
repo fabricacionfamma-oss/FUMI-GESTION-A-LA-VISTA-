@@ -243,7 +243,11 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
                 df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
             elif area.upper() == 'GLOBAL':
-                df_m_target = df_m_all; df_t_target = df_t_all; df_r_target = df_r_all
+                # Filtramos para considerar SOLO Estampado, Soldadura y Soldadura Nueva
+                grupos_validos = GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA
+                df_m_target = df_m_all[df_m_all['Grupo'].isin(grupos_validos)]
+                df_t_target = df_t_all[df_t_all['Grupo'].isin(grupos_validos)]
+                df_r_target = df_r_all[df_r_all['Grupo'].isin(grupos_validos)]
             else:
                 df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
         else:
@@ -268,8 +272,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         
         if not df_oficial.empty:
             if target == 'GENERAL':
-                if area.upper() == 'GLOBAL': row = df_oficial[df_oficial['Nivel'] == 'GLOBAL']
-                else: row = df_oficial[(df_oficial['Nivel'] == 'FABRICA') & (df_oficial['Grupo'].str.contains(area.upper(), na=False))]
+                if area.upper() == 'GLOBAL': 
+                    # Forzamos un DataFrame vacío para ignorar el dato global oficial de la BD. 
+                    # Esto obliga al script a recalcular los KPIs usando los datos previamente filtrados.
+                    row = pd.DataFrame() 
+                else: 
+                    row = df_oficial[(df_oficial['Nivel'] == 'FABRICA') & (df_oficial['Grupo'].str.contains(area.upper(), na=False))]
             else:
                 row = df_oficial[(df_oficial['Nivel'] == 'LINEA') & (df_oficial['Grupo'] == target)]
                 
