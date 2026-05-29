@@ -15,44 +15,77 @@ st.set_page_config(page_title="Reportes Fumiscor", layout="wide", page_icon="�
 
 MAQUINAS_MAP = {
     # --- ESTAMPADO ---
-    "P-023": "PRENSAS PROGRESIVAS", "P-024": "PRENSAS PROGRESIVAS", "P-025": "PRENSAS PROGRESIVAS", "P-026": "PRENSAS PROGRESIVAS",
-    "P-027": "PRENSAS PROGRESIVAS GRANDES", "P-028": "PRENSAS PROGRESIVAS GRANDES", "P-029": "PRENSAS PROGRESIVAS GRANDES", "P-030": "PRENSAS PROGRESIVAS GRANDES",
-    "BAL-002": "BALANCIN", "BAL-003": "BALANCIN", "BAL-005": "BALANCIN", "BAL-006": "BALANCIN", "BAL-007": "BALANCIN", 
-    "BAL-008": "BALANCIN", "BAL-009": "BALANCIN", "BAL-010": "BALANCIN", "BAL-011": "BALANCIN", "BAL-012": "BALANCIN", 
-    "BAL-013": "BALANCIN", "BAL-014": "BALANCIN", "BAL-015": "BALANCIN",
-    "P-011": "HIDRAULICAS", "P-012": "HIDRAULICAS", "P-013": "HIDRAULICAS", "P-014": "HIDRAULICAS", "P-016": "HIDRAULICAS", 
-    "P-017": "HIDRAULICAS", "P-018": "HIDRAULICAS", 
-    "P-015": "MECANICAS", "P-019": "MECANICAS", "P-020": "MECANICAS", "P-021": "MECANICAS", "P-022": "MECANICAS", 
-    "GOF01": "Gofradora",
+    "P-023": "GME-04 - PRENSA PROGRESIVA", "P-024": "GME-04 - PRENSA PROGRESIVA", 
+    "P-025": "GME-04 - PRENSA PROGRESIVA", "P-026": "GME-04 - PRENSA PROGRESIVA",
+    "P-027": "PRENSAS PROGRESIVAS GRANDES", "P-028": "PRENSAS PROGRESIVAS GRANDES", 
+    "P-029": "PRENSAS PROGRESIVAS GRANDES", "P-030": "PRENSAS PROGRESIVAS GRANDES",
+    
+    "BAL-002": "GME-01 - BALANCIN", "BAL-003": "GME-01 - BALANCIN", "BAL-005": "GME-01 - BALANCIN", 
+    "BAL-006": "GME-01 - BALANCIN", "BAL-007": "GME-01 - BALANCIN", "BAL-008": "GME-01 - BALANCIN", 
+    "BAL-009": "GME-01 - BALANCIN", "BAL-010": "GME-01 - BALANCIN", "BAL-011": "GME-01 - BALANCIN", 
+    "BAL-012": "GME-01 - BALANCIN", "BAL-013": "GME-01 - BALANCIN", "BAL-014": "GME-01 - BALANCIN", 
+    "BAL-015": "GME-01 - BALANCIN",
+    
+    "P-011": "GME-02 - PRENSA HIDRAULICA", "P-012": "GME-02 - PRENSA HIDRAULICA", 
+    "P-013": "GME-02 - PRENSA HIDRAULICA", "P-014": "GME-02 - PRENSA HIDRAULICA", 
+    "P-016": "GME-02 - PRENSA HIDRAULICA", "P-017": "GME-02 - PRENSA HIDRAULICA", 
+    "P-018": "GME-02 - PRENSA HIDRAULICA", 
+    
+    "P-015": "GME-03 - PRENSA MECANICA", "P-019": "GME-03 - PRENSA MECANICA", 
+    "P-020": "GME-03 - PRENSA MECANICA", "P-021": "GME-03 - PRENSA MECANICA", 
+    "P-022": "GME-03 - PRENSA MECANICA", 
+    
+    "GOF01": "GME-03 - PRENSA MECANICA", # Asignado temporalmente a Mecánicas
     
     # --- SOLDADURA ---
-    "SOP-003": "PRP", "SOP-005": "PRP", "SOP-008": "PRP", "SOP-009": "PRP", "SOP-010": "PRP",
-    "SOP-017": "PRP", "SOP-018": "PRP", "SOP-019": "PRP", "SOP-020": "PRP", "SOP-022": "PRP",
-    "SOP-023": "PRP", "SOP-024": "PRP", "SOP-025": "PRP", "SOP-026": "PRP", "SOP-027": "PRP",
-    "SOP-028": "PRP", "SOP-029": "PRP", "SOP-030": "PRP",
+    "SOP-003": "GMS-02 - PRP", "SOP-005": "GMS-02 - PRP", "SOP-008": "GMS-02 - PRP", 
+    "SOP-009": "GMS-02 - PRP", "SOP-010": "GMS-02 - PRP", "SOP-017": "GMS-02 - PRP", 
+    "SOP-018": "GMS-02 - PRP", "SOP-019": "GMS-02 - PRP", "SOP-020": "GMS-02 - PRP", 
+    "SOP-022": "GMS-02 - PRP", "SOP-023": "GMS-02 - PRP", "SOP-024": "GMS-02 - PRP", 
+    "SOP-025": "GMS-02 - PRP", "SOP-026": "GMS-02 - PRP", "SOP-027": "GMS-02 - PRP",
+    "SOP-028": "GMS-02 - PRP", "SOP-029": "GMS-02 - PRP", "SOP-030": "GMS-02 - PRP",
     
-    "DOB-001": "DOBLADORAS", "DOB-01": "DOBLADORAS", "DOB-002": "DOBLADORAS", "DOB-003": "DOBLADORAS", 
-    "DOB-004": "DOBLADORAS", "DOB-005": "DOBLADORAS", "DOB-006": "DOBLADORAS", "DOB-007": "DOBLADORAS", 
-    "DOB-008": "DOBLADORAS", "DOB-009": "DOBLADORAS", "DOB-010": "DOBLADORAS",
+    "DOB-001": "GME-05 - DOBLADORA", "DOB-01": "GME-05 - DOBLADORA", "DOB-002": "GME-05 - DOBLADORA", 
+    "DOB-003": "GME-05 - DOBLADORA", "DOB-004": "GME-05 - DOBLADORA", "DOB-005": "GME-05 - DOBLADORA", 
+    "DOB-006": "GME-05 - DOBLADORA", "DOB-007": "GME-05 - DOBLADORA", "DOB-008": "GME-05 - DOBLADORA", 
+    "DOB-009": "GME-05 - DOBLADORA", "DOB-010": "GME-05 - DOBLADORA",
     
-    "Celda 01 Fumis": "CELDAS RENAULT", "Celda 02 Fumis": "CELDAS RENAULT", "Celda 03 Fumis": "CELDAS RENAULT", 
-    "Celda 04 Fumis": "CELDAS RENAULT", "Celda 05 Fumis": "CELDAS RENAULT", "Celda 06 Fumis": "CELDAS RENAULT",
-    "Celda 07 Fumis": "CELDAS RENAULT", "Celda 08 Fumis": "CELDAS RENAULT", "Celda 09 Fumis": "CELDAS RENAULT",
-    "Celda 10 Fumis": "CELDAS RENAULT", "Celda 11 Fumis": "CELDAS RENAULT", "Celda 12 Fumis": "CELDAS RENAULT",
-    "Celda 13 Fumis": "CELDAS RENAULT", "Celda 14 Fumis": "CELDAS RENAULT", "Celda 15 Fumis": "CELDAS RENAULT",
+    # --- SOLDADURA NUEVA (Integrada en Soldadura) ---
+    "Celda 01 Fumis": "CELDAS NUEVAS", "Celda 02 Fumis": "CELDAS NUEVAS", "Celda 03 Fumis": "CELDAS NUEVAS", 
+    "Celda 04 Fumis": "CELDAS NUEVAS", "Celda 05 Fumis": "CELDAS NUEVAS", "Celda 06 Fumis": "CELDAS NUEVAS",
+    "Celda 07 Fumis": "CELDAS NUEVAS", "Celda 08 Fumis": "CELDAS NUEVAS", "Celda 09 Fumis": "CELDAS NUEVAS",
+    "Celda 10 Fumis": "CELDAS NUEVAS", "Celda 11 Fumis": "CELDAS NUEVAS", "Celda 12 Fumis": "CELDAS NUEVAS",
+    "Celda 13 Fumis": "CELDAS NUEVAS", "Celda 14 Fumis": "CELDAS NUEVAS", "Celda 15 Fumis": "CELDAS NUEVAS",
     
-    "Cel1 - Rob13 - RUEDA AUX.": "CELDAS", "Cel2 - Rob1 - ALMOHADON": "CELDAS",
-    "Cel3 - Rob14 - HANGERS": "CELDAS", "Cel4 - Rob6 - DOB TORCHA": "CELDAS",
-    "Cel5 - Rob4 - Respaldo 60/40": "CELDAS", "HANGERS NISSAN": "CELDAS"
+    "Cel1 - Rob13 - RUEDA AUX.": "GMS-01 - ROBOT", "Cel2 - Rob1 - ALMOHADON": "GMS-01 - ROBOT",
+    "Cel3 - Rob14 - HANGERS": "GMS-01 - ROBOT", "Cel4 - Rob6 - DOB TORCHA": "GMS-01 - ROBOT",
+    "Cel5 - Rob4 - Respaldo 60/40": "GMS-01 - ROBOT", "HANGERS NISSAN": "GMS-01 - ROBOT"
 }
 
-GRUPOS_ESTAMPADO = ['PRENSAS PROGRESIVAS', 'PRENSAS PROGRESIVAS GRANDES', 'BALANCIN', 'HIDRAULICAS', 'MECANICAS', 'Gofradora', 'OTRO ESTAMPADO']
-GRUPOS_SOLDADURA = ['PRP', 'DOBLADORAS', 'CELDAS RENAULT', 'CELDAS']
+# Grupos actualizados según el esquema oficial
+GRUPOS_ESTAMPADO = [
+    'CORTADORA LASER', 
+    'GME-01 - BALANCIN', 
+    'GME-02 - PRENSA HIDRAULICA', 
+    'GME-03 - PRENSA MECANICA', 
+    'GME-04 - PRENSA PROGRESIVA', 
+    'PRENSAS PROGRESIVAS GRANDES'
+]
 
+GRUPOS_SOLDADURA = [
+    'GME-05 - DOBLADORA', 
+    'GMS-01 - ROBOT', 
+    'GMS-02 - PRP', 
+    'GMS-03 - COLGANTE', 
+    'GMS-03 - SOLDADORA MANUAL', 
+    'CELDAS NUEVAS'
+]
+
+# Mapa de contingencia por si Wiidem manda nombres ligeramente distintos
 MAPEO_LINEAS_WIIDEM = {
-    "GMS-01 - ROBOT": "CELDAS",
-    "CELDAS NUEVAS": "CELDAS RENAULT",
-    "BALANCINES": "BALANCIN"
+    "BALANCINES": "GME-01 - BALANCIN",
+    "CELDAS RENAULT": "CELDAS NUEVAS",
+    "CELDAS": "GMS-01 - ROBOT"
 }
 
 # ==========================================
@@ -239,9 +272,9 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         
         if target == 'GENERAL':
             if area.upper() == 'SOLDADURA':
-                df_m_target = df_m[df_m['Grupo'] != 'CELDAS RENAULT']
-                df_t_target = df_t[df_t['Grupo'] != 'CELDAS RENAULT']
-                df_r_target = df_r[df_r['Grupo'] != 'CELDAS RENAULT']
+                df_m_target = df_m[df_m['Grupo'] != 'CELDAS NUEVAS']
+                df_t_target = df_t[df_t['Grupo'] != 'CELDAS NUEVAS']
+                df_r_target = df_r[df_r['Grupo'] != 'CELDAS NUEVAS']
             elif area.upper() == 'GLOBAL':
                 df_m_target = df_m_all; df_t_target = df_t_all; df_r_target = df_r_all
             else:
@@ -258,7 +291,8 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         pdf.cell(40, 6, label_reporte, 1, 0, 'C', fill=True); pdf.set_font("Arial", 'B', 10); pdf.cell(197, 6, "EMPRESA: FUMISCOR", 1, 0, 'C', fill=True); pdf.set_font("Arial", '', 10); pdf.cell(40, 6, "DISPONIBILIDAD", 1, 1, 'C', fill=True)
 
         if not df_m_target.empty:
-            df_m_target['Totales'] = df_m_target['Buenas'] + df_m_target['Retrabajo'] + df_m_target['Observadas']
+            if 'Totales' not in df_m_target.columns:
+                df_m_target['Totales'] = df_m_target['Buenas'] + df_m_target['Retrabajo'] + df_m_target['Observadas']
             valid_m = df_m_target[(df_m_target['T_Planificado'] > 0) & (df_m_target['T_Operativo'] > 0) & (df_m_target['Totales'] > 0)]
         else:
             valid_m = pd.DataFrame()
@@ -280,7 +314,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 v_cal = row['Cal'].values[0]
                 encontrado_oficial = True
 
-        if not encontrado_oficial or (v_oee == 0 and v_perf == 0 and v_disp == 0): # Agregado check si el editor está en 0
+        if not encontrado_oficial or (v_oee == 0 and v_perf == 0 and v_disp == 0): 
             t_plan = valid_m['T_Planificado'].sum() if not valid_m.empty else 0
             t_op = valid_m['T_Operativo'].sum() if not valid_m.empty else 0
             t_piezas = valid_m['Totales'].sum() if not valid_m.empty else 0
@@ -290,6 +324,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             v_disp = (valid_m['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
             v_cal = (valid_m['Cal_Num'].sum() / t_piezas) if t_piezas > 0 else 0
         
+        # Corrección dinámica para porcentajes
         if v_oee > 1.5 or v_perf > 1.5 or v_disp > 1.5:
             v_oee /= 100.0; v_perf /= 100.0; v_disp /= 100.0; v_cal /= 100.0
             
@@ -379,7 +414,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             w_pdf = 132 if not draw_large else 134
             img = save_chart(fig, w_img, h_img); pdf.image(img, x=x_pos+2, y=y_pos+2, w=w_pdf); os.remove(img)
 
-        # Inserción de Paneles y Gráficos (Asegurando que off_val sincroniza el mes seleccionado)
+        # Inserción de Paneles y Gráficos
         if area.upper() == "GLOBAL":
             pdf.draw_panel(10, 48, 136, 75); pdf.draw_panel(149, 48, 138, 75)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, TARGETS["OEE"], v_oee, draw_large=True)
@@ -397,7 +432,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102, TARGETS["DISPONIBILIDAD"], v_disp)
             add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102, TARGETS["CALIDAD"], v_cal)
             
-            # --- PANEL INFERIOR CON HORAS Y % MANTENIDO INTACTO ---
             pdf.draw_panel(10, 156, 136, 45); pdf.draw_panel(149, 156, 138, 45)
             pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
             
@@ -420,11 +454,9 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                     pdf.cell(30, 6, f"{r['Tiempo (Min)']:.0f}", border=1, align='C', fill=True)
                     pdf.cell(30, 6, f"{(r['Tiempo (Min)']/t_total)*100:.1f}%", border=1, align='C', ln=True, fill=True)
                 
-                # --- GRÁFICO HORIZONTAL APILADO CON LEYENDA DINÁMICA ---
                 df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
                 df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
                 df_macro['Y'] = "Pérdidas"
-                # Esta leyenda es la que solicitaste mantener con las horas y el %
                 df_macro['Leyenda'] = df_macro.apply(lambda r: f"{r['Categoria_Macro']} ({r['Tiempo (Min)']/60:.1f} hs | {r['%']:.1%})", axis=1)
                 
                 fig_stack = px.bar(df_macro, x='%', y='Y', color='Leyenda', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
@@ -446,7 +478,6 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     pdf = ReportePDF(f"INFORME PRODUCTIVO - {area}", label_reporte, theme_color)
     
     mapa_limpio = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
-    grupos_upper = [g.upper() for g in grupos]
     
     df_t = df_trend.copy(); df_p = df_piezas.copy(); mapa = {k.upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
     
@@ -459,21 +490,15 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
 
     if area.upper() == "ESTAMPADO":
-        target_scrap = 0.50
-        target_rt = 2.00
+        target_scrap = 0.50; target_rt = 2.00
     else:
-        target_scrap = 0.30
-        target_rt = 2.00
+        target_scrap = 0.30; target_rt = 2.00
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
-        if target == 'GENERAL':
-            df_t_target = df_t
-            df_p_target = df_p
-        else:
-            df_t_target = df_t[df_t['Grupo'] == target]
-            df_p_target = df_p[df_p['Grupo'] == target]
+        if target == 'GENERAL': df_t_target = df_t; df_p_target = df_p
+        else: df_t_target = df_t[df_t['Grupo'] == target]; df_p_target = df_p[df_p['Grupo'] == target]
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(20, 6, "MES", 1, 0, 'C', fill=True); pdf.cell(20, 6, "AÑO", 1, 0, 'C', fill=True); pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True); pdf.cell(40, 6, "AREA", 1, 1, 'C', fill=True)
@@ -491,8 +516,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
         df_ev['% Scrap'] = ((df_ev['Observadas'] / df_ev['Totales_Div']) * 100).round(2)
         df_ev['% RT'] = ((df_ev['Retrabajo'] / df_ev['Totales_Div']) * 100).round(2)
-        meses_map = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
-        df_ev['Mes_Str'] = df_ev['Month'].map(meses_map)
+        df_ev['Mes_Str'] = df_ev['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
 
         df_ev['Color_Scrap'] = df_ev['% Scrap'].apply(lambda x: '#E74C3C' if x > target_scrap else '#2ECC71')
         df_ev['Color_RT'] = df_ev['% RT'].apply(lambda x: '#E74C3C' if x > target_rt else '#2ECC71')
@@ -504,9 +528,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         titles = ["PIEZAS PRODUCIDAS MES A MES", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
         for i, f in enumerate([f1, f2, f3]): 
             max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
-            
-            if i == 0: 
-                upper_limit = max_y * 1.3 if max_y > 0 else 1
+            if i == 0: upper_limit = max_y * 1.3 if max_y > 0 else 1
             else: 
                 current_target = target_scrap if i == 1 else target_rt
                 upper_limit = max(0.2, max_y * 1.3, current_target * 1.5)
@@ -560,12 +582,7 @@ with col1:
 with col2: 
     a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2)
 
-meses_nombres = {
-    1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 
-    5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 
-    9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
-}
-mes_str = meses_nombres[m_sel]
+mes_str = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}[m_sel]
 
 ini = pd.to_datetime(f"{a_sel}-{m_sel}-01")
 fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}")
@@ -579,31 +596,61 @@ hs_rt = st.number_input("Horas de RT (Solo válido para Estampado General):", mi
 
 st.divider()
 
-# --- NUEVA SECCIÓN DE EDICIÓN DE INDICADORES ---
+# --- NUEVA SECCIÓN DE EDICIÓN DE INDICADORES (CON PRE-CÁLCULO AUTOMÁTICO) ---
 st.write("### 2.5. Corrección de Indicadores Oficiales (Wiidem)")
-st.info("Si los valores calculados no coinciden con Wiidem, modifíquelos en esta tabla antes de generar los PDFs. (Ejemplo: Ingrese 0.85 para representar 85%). Si el valor queda en 0, el sistema lo calculará automáticamente.")
+st.info("Estos son los valores que figurarán en el PDF. Si Wiidem los tiene calculados, aparecen aquí. Si no, **el sistema los pre-calculó automáticamente para evitar que queden en 0**. Puede editarlos libremente si es necesario.")
 
-# 1. Armamos una estructura completa con todos los niveles que requiere el reporte
-filas_estructura = [
-    {'Nivel': 'GLOBAL', 'Grupo': 'GLOBAL'},
-    {'Nivel': 'FABRICA', 'Grupo': 'ESTAMPADO'},
-    {'Nivel': 'FABRICA', 'Grupo': 'SOLDADURA'}
-]
-for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA:
-    filas_estructura.append({'Nivel': 'LINEA', 'Grupo': g})
+# 1. Función para pre-calcular los valores si Wiidem no los trae
+def calcular_kpis_base(df_m_raw):
+    if df_m_raw.empty: return pd.DataFrame()
+    mapa = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
+    df = df_m_raw.copy()
+    df['Grupo'] = df['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
+    df['Totales'] = df['Buenas'] + df['Retrabajo'] + df['Observadas']
+    
+    resultados = []
+    def calc_r(name, nivel, data):
+        if data.empty: return {'Nivel': nivel, 'Grupo': name, 'Performance': 0.0, 'Disp': 0.0, 'Cal': 0.0, 'Oee': 0.0}
+        t_plan = data['T_Planificado'].sum()
+        t_op = data['T_Operativo'].sum()
+        t_pz = data['Totales'].sum()
+        
+        return {
+            'Nivel': nivel, 'Grupo': name,
+            'Performance': (data['Perf_Num'].sum() / t_op * 100) if t_op > 0 else 0,
+            'Disp': (data['Disp_Num'].sum() / t_plan * 100) if t_plan > 0 else 0,
+            'Cal': (data['Cal_Num'].sum() / t_pz * 100) if t_pz > 0 else 0,
+            'Oee': (data['OEE_Num'].sum() / t_plan * 100) if t_plan > 0 else 0
+        }
 
-df_base_editor = pd.DataFrame(filas_estructura)
+    resultados.append(calc_r('GLOBAL', 'GLOBAL', df))
+    resultados.append(calc_r('ESTAMPADO', 'FABRICA', df[df['Grupo'].isin(GRUPOS_ESTAMPADO)]))
+    resultados.append(calc_r('SOLDADURA', 'FABRICA', df[df['Grupo'].isin(GRUPOS_SOLDADURA)]))
+    for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA:
+        resultados.append(calc_r(g, 'LINEA', df[df['Grupo'] == g]))
+        
+    return pd.DataFrame(resultados)
 
-# 2. Cruzamos con los datos oficiales de la base de datos (si existen)
-if not df_oficial.empty:
-    df_base_editor = pd.merge(df_base_editor, df_oficial, on=['Nivel', 'Grupo'], how='left').fillna(0.0)
-else:
-    df_base_editor['Performance'] = 0.0
-    df_base_editor['Disp'] = 0.0
-    df_base_editor['Cal'] = 0.0
-    df_base_editor['Oee'] = 0.0
+# 2. Generamos la base calculada internamente
+df_base_editor = calcular_kpis_base(df_m)
 
-# 3. Mostramos el editor interactivo
+# 3. Cruzamos con Wiidem (prioridad a Wiidem si > 0)
+if not df_base_editor.empty and not df_oficial.empty:
+    df_base_editor.set_index(['Nivel', 'Grupo'], inplace=True)
+    df_of_idx = df_oficial.set_index(['Nivel', 'Grupo'])
+    for col in ['Performance', 'Disp', 'Cal', 'Oee']:
+        if col in df_of_idx.columns:
+            valid_vals = df_of_idx[df_of_idx[col] > 0][col]
+            df_base_editor.update(valid_vals)
+    df_base_editor.reset_index(inplace=True)
+elif df_base_editor.empty:
+    # Fallback structure just in case there's no data at all
+    estruct = [{'Nivel': 'GLOBAL', 'Grupo': 'GLOBAL'}, {'Nivel': 'FABRICA', 'Grupo': 'ESTAMPADO'}, {'Nivel': 'FABRICA', 'Grupo': 'SOLDADURA'}]
+    estruct += [{'Nivel': 'LINEA', 'Grupo': g} for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA]
+    df_base_editor = pd.DataFrame(estruct)
+    df_base_editor[['Performance', 'Disp', 'Cal', 'Oee']] = 0.0
+
+# 4. Mostramos el editor
 df_oficial_editado = st.data_editor(
     df_base_editor,
     use_container_width=True,
@@ -617,7 +664,6 @@ df_oficial_editado = st.data_editor(
         "Oee": st.column_config.NumberColumn("OEE", format="%.4f", step=0.01),
     }
 )
-# -----------------------------------------------
 
 st.divider()
 st.write("### 3. Preparar y Descargar Reportes")
@@ -630,7 +676,7 @@ with c_d:
             with st.spinner("Generando documento..."):
                 st.session_state['pdf_oee_est_fumis'] = crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
         if 'pdf_oee_est_fumis' in st.session_state:
-            st.download_button("📥 Bajar PDF Estampado", data=st.session_state['pdf_oee_est_fumis'], file_name=f"FUMISCOR_Gestion_Vista_ESTAMPADO_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📥 Bajar PDF Estampado", data=st.session_state['pdf_oee_est_fumis'], file_name="FUMISCOR_Gestion_Vista_ESTAMPADO.pdf", mime="application/pdf", use_container_width=True)
             
         st.write("---")
         
@@ -638,7 +684,7 @@ with c_d:
             with st.spinner("Generando documento..."):
                 st.session_state['pdf_oee_sol_fumis'] = crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
         if 'pdf_oee_sol_fumis' in st.session_state:
-            st.download_button("📥 Bajar PDF Soldadura", data=st.session_state['pdf_oee_sol_fumis'], file_name=f"FUMISCOR_Gestion_Vista_SOLDADURA_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📥 Bajar PDF Soldadura", data=st.session_state['pdf_oee_sol_fumis'], file_name="FUMISCOR_Gestion_Vista_SOLDADURA.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.error("No hay datos.")
 
@@ -649,7 +695,7 @@ with c_p:
             with st.spinner("Generando documento..."):
                 st.session_state['pdf_prod_est_fumis'] = crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt)
         if 'pdf_prod_est_fumis' in st.session_state:
-            st.download_button("📥 Bajar Prod. Estampado", data=st.session_state['pdf_prod_est_fumis'], file_name=f"FUMISCOR_Productivo_Vista_ESTAMPADO_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📥 Bajar Prod. Estampado", data=st.session_state['pdf_prod_est_fumis'], file_name="FUMISCOR_Productivo_Vista_ESTAMPADO.pdf", mime="application/pdf", use_container_width=True)
         
         st.write("---")
         
@@ -657,7 +703,7 @@ with c_p:
             with st.spinner("Generando documento..."):
                 st.session_state['pdf_prod_sol_fumis'] = crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt)
         if 'pdf_prod_sol_fumis' in st.session_state:
-            st.download_button("📥 Bajar Prod. Soldadura", data=st.session_state['pdf_prod_sol_fumis'], file_name=f"FUMISCOR_Productivo_Vista_SOLDADURA_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📥 Bajar Prod. Soldadura", data=st.session_state['pdf_prod_sol_fumis'], file_name="FUMISCOR_Productivo_Vista_SOLDADURA.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.error("No hay datos.")
 
@@ -668,6 +714,6 @@ with c_g:
             with st.spinner("Generando documento maestro..."):
                 st.session_state['pdf_oee_glob_fumis'] = crear_pdf_gestion_a_la_vista("GLOBAL", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
         if 'pdf_oee_glob_fumis' in st.session_state:
-            st.download_button("📥 Bajar PDF Global", data=st.session_state['pdf_oee_glob_fumis'], file_name=f"FUMISCOR_Vista_GENERAL_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📥 Bajar PDF Global", data=st.session_state['pdf_oee_glob_fumis'], file_name="FUMISCOR_Vista_GENERAL.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.error("No hay datos.")
