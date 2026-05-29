@@ -280,7 +280,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 v_cal = row['Cal'].values[0]
                 encontrado_oficial = True
 
-        if not encontrado_oficial:
+        if not encontrado_oficial or (v_oee == 0 and v_perf == 0 and v_disp == 0): # Agregado check si el editor está en 0
             t_plan = valid_m['T_Planificado'].sum() if not valid_m.empty else 0
             t_op = valid_m['T_Operativo'].sum() if not valid_m.empty else 0
             t_piezas = valid_m['Totales'].sum() if not valid_m.empty else 0
@@ -578,6 +578,48 @@ st.write("### 2. Datos Manuales (Informe Productivo)")
 hs_rt = st.number_input("Horas de RT (Solo válido para Estampado General):", min_value=0.0, max_value=1000.0, value=0.0, step=1.0)
 
 st.divider()
+
+# --- NUEVA SECCIÓN DE EDICIÓN DE INDICADORES ---
+st.write("### 2.5. Corrección de Indicadores Oficiales (Wiidem)")
+st.info("Si los valores calculados no coinciden con Wiidem, modifíquelos en esta tabla antes de generar los PDFs. (Ejemplo: Ingrese 0.85 para representar 85%). Si el valor queda en 0, el sistema lo calculará automáticamente.")
+
+# 1. Armamos una estructura completa con todos los niveles que requiere el reporte
+filas_estructura = [
+    {'Nivel': 'GLOBAL', 'Grupo': 'GLOBAL'},
+    {'Nivel': 'FABRICA', 'Grupo': 'ESTAMPADO'},
+    {'Nivel': 'FABRICA', 'Grupo': 'SOLDADURA'}
+]
+for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA:
+    filas_estructura.append({'Nivel': 'LINEA', 'Grupo': g})
+
+df_base_editor = pd.DataFrame(filas_estructura)
+
+# 2. Cruzamos con los datos oficiales de la base de datos (si existen)
+if not df_oficial.empty:
+    df_base_editor = pd.merge(df_base_editor, df_oficial, on=['Nivel', 'Grupo'], how='left').fillna(0.0)
+else:
+    df_base_editor['Performance'] = 0.0
+    df_base_editor['Disp'] = 0.0
+    df_base_editor['Cal'] = 0.0
+    df_base_editor['Oee'] = 0.0
+
+# 3. Mostramos el editor interactivo
+df_oficial_editado = st.data_editor(
+    df_base_editor,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Nivel": st.column_config.TextColumn("Nivel", disabled=True),
+        "Grupo": st.column_config.TextColumn("Grupo", disabled=True),
+        "Performance": st.column_config.NumberColumn("Performance", format="%.4f", step=0.01),
+        "Disp": st.column_config.NumberColumn("Disponibilidad", format="%.4f", step=0.01),
+        "Cal": st.column_config.NumberColumn("Calidad", format="%.4f", step=0.01),
+        "Oee": st.column_config.NumberColumn("OEE", format="%.4f", step=0.01),
+    }
+)
+# -----------------------------------------------
+
+st.divider()
 st.write("### 3. Preparar y Descargar Reportes")
 c_d, c_p, c_g = st.columns(3)
 
@@ -586,7 +628,7 @@ with c_d:
     if not df_m.empty:
         if st.button("⚙️ Preparar PDF Estampado", use_container_width=True):
             with st.spinner("Generando documento..."):
-                st.session_state['pdf_oee_est_fumis'] = crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t, df_oficial, m_sel)
+                st.session_state['pdf_oee_est_fumis'] = crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
         if 'pdf_oee_est_fumis' in st.session_state:
             st.download_button("📥 Bajar PDF Estampado", data=st.session_state['pdf_oee_est_fumis'], file_name=f"FUMISCOR_Gestion_Vista_ESTAMPADO_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
             
@@ -594,7 +636,7 @@ with c_d:
         
         if st.button("⚙️ Preparar PDF Soldadura", use_container_width=True):
             with st.spinner("Generando documento..."):
-                st.session_state['pdf_oee_sol_fumis'] = crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t, df_oficial, m_sel)
+                st.session_state['pdf_oee_sol_fumis'] = crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
         if 'pdf_oee_sol_fumis' in st.session_state:
             st.download_button("📥 Bajar PDF Soldadura", data=st.session_state['pdf_oee_sol_fumis'], file_name=f"FUMISCOR_Gestion_Vista_SOLDADURA_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
     else:
@@ -624,7 +666,7 @@ with c_g:
     if not df_m.empty:
         if st.button("🌎 Preparar PDF Global", use_container_width=True):
             with st.spinner("Generando documento maestro..."):
-                st.session_state['pdf_oee_glob_fumis'] = crear_pdf_gestion_a_la_vista("GLOBAL", lab, df_m, df_r, df_t, df_oficial, m_sel)
+                st.session_state['pdf_oee_glob_fumis'] = crear_pdf_gestion_a_la_vista("GLOBAL", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
         if 'pdf_oee_glob_fumis' in st.session_state:
             st.download_button("📥 Bajar PDF Global", data=st.session_state['pdf_oee_glob_fumis'], file_name=f"FUMISCOR_Vista_GENERAL_{mes_str}_{a_sel}.pdf", mime="application/pdf", use_container_width=True)
     else:
