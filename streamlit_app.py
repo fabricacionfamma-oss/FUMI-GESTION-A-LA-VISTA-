@@ -20,7 +20,16 @@ MAQUINAS_MAP = {
     "P-027": "PRENSAS PROGRESIVAS GRANDES", "P-028": "PRENSAS PROGRESIVAS GRANDES", 
     "P-029": "PRENSAS PROGRESIVAS GRANDES", "P-030": "PRENSAS PROGRESIVAS GRANDES",
     
-    "BAL-002": "GME-01 - BALANCIN", "BAL-003": "GME-01 - BALANCIN", "BAL-005": "GME-01 - BALANCIN", 
+    # --- AGREGADO: Prensas faltantes (Ajustar grupo si es necesario) ---
+    "P-001": "GME-02 - PRENSA HIDRAULICA", "P-002": "GME-02 - PRENSA HIDRAULICA",
+    "P-003": "GME-02 - PRENSA HIDRAULICA", "P-004": "GME-02 - PRENSA HIDRAULICA",
+    "P-005": "GME-02 - PRENSA HIDRAULICA", "P-006": "GME-02 - PRENSA HIDRAULICA",
+    "P-007": "GME-02 - PRENSA HIDRAULICA", "P-008": "GME-02 - PRENSA HIDRAULICA",
+    "P-009": "GME-02 - PRENSA HIDRAULICA", "P-010": "GME-02 - PRENSA HIDRAULICA",
+    
+    # --- AGREGADO: BAL-001 y BAL-004 faltantes ---
+    "BAL-001": "GME-01 - BALANCIN", "BAL-002": "GME-01 - BALANCIN", "BAL-003": "GME-01 - BALANCIN", 
+    "BAL-004": "GME-01 - BALANCIN", "BAL-005": "GME-01 - BALANCIN", 
     "BAL-006": "GME-01 - BALANCIN", "BAL-007": "GME-01 - BALANCIN", "BAL-008": "GME-01 - BALANCIN", 
     "BAL-009": "GME-01 - BALANCIN", "BAL-010": "GME-01 - BALANCIN", "BAL-011": "GME-01 - BALANCIN", 
     "BAL-012": "GME-01 - BALANCIN", "BAL-013": "GME-01 - BALANCIN", "BAL-014": "GME-01 - BALANCIN", 
@@ -36,6 +45,9 @@ MAQUINAS_MAP = {
     "P-022": "GME-03 - PRENSA MECANICA", 
     
     "GOF01": "GME-03 - PRENSA MECANICA", # Asignado temporalmente a Mecánicas
+    
+    # --- AGREGADO: Cortadoras Laser (Ejemplos, debes poner el nombre exacto de tu BD) ---
+    "LASER 01": "CORTADORA LASER", "LASER 02": "CORTADORA LASER",
     
     # --- SOLDADURA ---
     "SOP-003": "GMS-02 - PRP", "SOP-005": "GMS-02 - PRP", "SOP-008": "GMS-02 - PRP", 
@@ -590,6 +602,16 @@ lab = f"{m_sel}/{a_sel}"
 
 with st.spinner("Conectando con la base de datos de Fumiscor..."):
     df_m, df_r, df_t, df_p, df_oficial = fetch_data_from_db(ini, fin, m_sel, a_sel)
+
+# --- DEBUG: VER QUÉ MÁQUINAS SE ESTÁN QUEDANDO AFUERA ---
+if not df_t.empty:
+    mapa_limpio_debug = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
+    df_debug = df_t.copy()
+    df_debug['Grupo'] = df_debug['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio_debug).fillna('Otro')
+    
+    maquinas_afuera = df_debug[df_debug['Grupo'] == 'Otro']['Máquina'].unique()
+    if len(maquinas_afuera) > 0:
+        st.warning(f"⚠️ Atención: Estas máquinas registraron producción pero NO están mapeadas en MAQUINAS_MAP. Sus piezas se están perdiendo en el total general: **{', '.join(maquinas_afuera)}**")
 
 st.write("### 2. Datos Manuales (Informe Productivo)")
 hs_rt = st.number_input("Horas de RT (Solo válido para Estampado General):", min_value=0.0, max_value=1000.0, value=0.0, step=1.0)
