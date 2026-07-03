@@ -6,21 +6,95 @@ import tempfile
 import os
 import calendar
 from fpdf import FPDF
+from datetime import timedelta
 
 # ==========================================
-# 0. CONFIGURACIÓN INICIAL
+# 0. CONFIGURACIÓN Y CONSTANTES
 # ==========================================
 st.set_page_config(page_title="Reportes Fumiscor", layout="wide", page_icon="📊")
 
+MAQUINAS_MAP = {
+    # --- ESTAMPADO ---
+    "P-023": "GME-04 - PRENSA PROGRESIVA", "P-024": "GME-04 - PRENSA PROGRESIVA", 
+    "P-025": "GME-04 - PRENSA PROGRESIVA", "P-026": "GME-04 - PRENSA PROGRESIVA",
+    "P-027": "PRENSAS PROGRESIVAS GRANDES", "P-028": "PRENSAS PROGRESIVAS GRANDES", 
+    "P-029": "PRENSAS PROGRESIVAS GRANDES", "P-030": "PRENSAS PROGRESIVAS GRANDES",
+    
+    "BAL-002": "GME-01 - BALANCIN", "BAL-003": "GME-01 - BALANCIN", "BAL-005": "GME-01 - BALANCIN", 
+    "BAL-006": "GME-01 - BALANCIN", "BAL-007": "GME-01 - BALANCIN", "BAL-008": "GME-01 - BALANCIN", 
+    "BAL-009": "GME-01 - BALANCIN", "BAL-010": "GME-01 - BALANCIN", "BAL-011": "GME-01 - BALANCIN", 
+    "BAL-012": "GME-01 - BALANCIN", "BAL-013": "GME-01 - BALANCIN", "BAL-014": "GME-01 - BALANCIN", 
+    "BAL-015": "GME-01 - BALANCIN",
+    
+    "P-011": "GME-02 - PRENSA HIDRAULICA", "P-012": "GME-02 - PRENSA HIDRAULICA", 
+    "P-013": "GME-02 - PRENSA HIDRAULICA", "P-014": "GME-02 - PRENSA HIDRAULICA", 
+    "P-016": "GME-02 - PRENSA HIDRAULICA", "P-017": "GME-02 - PRENSA HIDRAULICA", 
+    "P-018": "GME-02 - PRENSA HIDRAULICA", 
+    
+    "P-015": "GME-03 - PRENSA MECANICA", "P-019": "GME-03 - PRENSA MECANICA", 
+    "P-020": "GME-03 - PRENSA MECANICA", "P-021": "GME-03 - PRENSA MECANICA", 
+    "P-022": "GME-03 - PRENSA MECANICA", 
+    
+    "GOF01": "GME-03 - PRENSA MECANICA", # Asignado temporalmente a Mecánicas
+    
+    # --- SOLDADURA ---
+    "SOP-003": "GMS-02 - PRP", "SOP-005": "GMS-02 - PRP", "SOP-008": "GMS-02 - PRP", 
+    "SOP-009": "GMS-02 - PRP", "SOP-010": "GMS-02 - PRP", "SOP-017": "GMS-02 - PRP", 
+    "SOP-018": "GMS-02 - PRP", "SOP-019": "GMS-02 - PRP", "SOP-020": "GMS-02 - PRP", 
+    "SOP-022": "GMS-02 - PRP", "SOP-023": "GMS-02 - PRP", "SOP-024": "GMS-02 - PRP", 
+    "SOP-025": "GMS-02 - PRP", "SOP-026": "GMS-02 - PRP", "SOP-027": "GMS-02 - PRP",
+    "SOP-028": "GMS-02 - PRP", "SOP-029": "GMS-02 - PRP", "SOP-030": "GMS-02 - PRP",
+    
+    "DOB-001": "GME-05 - DOBLADORA", "DOB-01": "GME-05 - DOBLADORA", "DOB-002": "GME-05 - DOBLADORA", 
+    "DOB-003": "GME-05 - DOBLADORA", "DOB-004": "GME-05 - DOBLADORA", "DOB-005": "GME-05 - DOBLADORA", 
+    "DOB-006": "GME-05 - DOBLADORA", "DOB-007": "GME-05 - DOBLADORA", "DOB-008": "GME-05 - DOBLADORA", 
+    "DOB-009": "GME-05 - DOBLADORA", "DOB-010": "GME-05 - DOBLADORA",
+    
+    # --- SOLDADURA NUEVA (Integrada en Soldadura) ---
+    "Celda 01 Fumis": "CELDAS NUEVAS", "Celda 02 Fumis": "CELDAS NUEVAS", "Celda 03 Fumis": "CELDAS NUEVAS", 
+    "Celda 04 Fumis": "CELDAS NUEVAS", "Celda 05 Fumis": "CELDAS NUEVAS", "Celda 06 Fumis": "CELDAS NUEVAS",
+    "Celda 07 Fumis": "CELDAS NUEVAS", "Celda 08 Fumis": "CELDAS NUEVAS", "Celda 09 Fumis": "CELDAS NUEVAS",
+    "Celda 10 Fumis": "CELDAS NUEVAS", "Celda 11 Fumis": "CELDAS NUEVAS", "Celda 12 Fumis": "CELDAS NUEVAS",
+    "Celda 13 Fumis": "CELDAS NUEVAS", "Celda 14 Fumis": "CELDAS NUEVAS", "Celda 15 Fumis": "CELDAS NUEVAS",
+    
+    "Cel1 - Rob13 - RUEDA AUX.": "GMS-01 - ROBOT", "Cel2 - Rob1 - ALMOHADON": "GMS-01 - ROBOT",
+    "Cel3 - Rob14 - HANGERS": "GMS-01 - ROBOT", "Cel4 - Rob6 - DOB TORCHA": "GMS-01 - ROBOT",
+    "Cel5 - Rob4 - Respaldo 60/40": "GMS-01 - ROBOT", "HANGERS NISSAN": "GMS-01 - ROBOT"
+}
+
+# Grupos actualizados según el esquema oficial
+GRUPOS_ESTAMPADO = [
+    'CORTADORA LASER', 
+    'GME-01 - BALANCIN', 
+    'GME-02 - PRENSA HIDRAULICA', 
+    'GME-03 - PRENSA MECANICA', 
+    'GME-04 - PRENSA PROGRESIVA', 
+    'PRENSAS PROGRESIVAS GRANDES'
+]
+
+GRUPOS_SOLDADURA = [
+    'GME-05 - DOBLADORA', 
+    'GMS-01 - ROBOT', 
+    'GMS-02 - PRP', 
+    'GMS-03 - COLGANTE', 
+    'GMS-03 - SOLDADORA MANUAL', 
+    'CELDAS NUEVAS'
+]
+
+# Mapa de contingencia por si Wiidem manda nombres ligeramente distintos
+MAPEO_LINEAS_WIIDEM = {
+    "BALANCINES": "GME-01 - BALANCIN",
+    "CELDAS RENAULT": "CELDAS NUEVAS",
+    "CELDAS": "GMS-01 - ROBOT"
+}
+
 # ==========================================
-# 1. FUNCIONES AUXILIARES Y CLASE PDF
+# 1. FUNCIONES AUXILIARES Y PDF
 # ==========================================
 class ReportePDF(FPDF):
     def __init__(self, area, fecha_str, theme_color):
         super().__init__()
-        self.area = area
-        self.fecha_str = fecha_str
-        self.theme_color = theme_color
+        self.area = area; self.fecha_str = fecha_str; self.theme_color = theme_color
 
     def add_gradient_background(self):
         r1, g1, b1 = 240, 242, 246
@@ -66,95 +140,27 @@ def clean_text(text):
 def save_chart(fig, w=600, h=300):
     fig.update_layout(width=w, height=h, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        fig.write_image(tmp.name, engine="kaleido", scale=2.5)
-        return tmp.name
+        fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
 
 # ==========================================
-# 2. CARGA DE DATOS (NATIVA DESDE SQL)
+# 2. CARGA DE DATOS HÍBRIDA
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
     try:
         conn = st.connection("wii_bi", type="sql")
+        
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
         
-        # 1. METRICAS PROD_M_03
-        q_metrics = f"""
-            SELECT UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, 
-                   SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, 
-                   SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, 
-                   SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, 
-                   SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, 
-                   SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, 
-                   SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, 
-                   SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num 
-            FROM PROD_M_03 p 
-            LEFT JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON p.LineId = l.LineId
-            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
-            WHERE p.Year = {anio} AND p.Month = {mes} 
-            GROUP BY f.Name, l.Name, c.Name
-        """
-        
-        # 2. EVENTOS EVENT_01
-        q_event = f"""
-            SELECT UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, e.Interval as [Tiempo (Min)], 
-                   t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] 
-            FROM EVENT_01 e 
-            LEFT JOIN CELL c ON e.CellId = c.CellId 
-            LEFT JOIN LINE l ON e.LineId = l.LineId
-            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
-            LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId 
-            LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId 
-            LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId 
-            LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId 
-            WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'
-        """
-        
-        # 3. PIEZAS PROD_M_01
-        q_piezas = f"""
-            SELECT UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, COALESCE(pr.Code, 'S/C') as Pieza, 
-                   SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT 
-            FROM PROD_M_01 p 
-            LEFT JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON p.LineId = l.LineId
-            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
-            LEFT JOIN PRODUCT pr ON p.ProductId = pr.ProductId 
-            WHERE p.Year = {anio} AND p.Month = {mes} 
-            GROUP BY f.Name, l.Name, c.Name, pr.Code
-        """
+        q_metrics = f"SELECT c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month = {mes} GROUP BY c.Name"
+        q_event = f"SELECT c.Name as Máquina, e.Interval as [Tiempo (Min)], t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] FROM EVENT_01 e LEFT JOIN CELL c ON e.CellId = c.CellId LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId LEFT JOIN EVENTTYPE t4 ON e.EventTypeLevel4 = t4.EventTypeId WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'"
+        q_piezas = f"SELECT c.Name as Máquina, COALESCE(pr.Code, 'S/C') as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId LEFT JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Year = {anio} AND p.Month = {mes} GROUP BY c.Name, pr.Code"
 
-        # 4. TENDENCIAS OEE PROD_M_03
-        q_trend_oee_monthly = f"""
-            SELECT p.Month, UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, 
-                   SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, 
-                   SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, 
-                   SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, 
-                   SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, 
-                   SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, 
-                   SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num 
-            FROM PROD_M_03 p 
-            LEFT JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON p.LineId = l.LineId
-            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
-            WHERE p.Year = {anio} AND p.Month <= {mes} 
-            GROUP BY p.Month, f.Name, l.Name, c.Name
-        """
+        q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
         
-        # 5. TENDENCIAS PIEZAS -> PROD_M_03 (CRÍTICO)
-        q_trend_piezas_monthly = f"""
-            SELECT p.Month, UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, 
-                   SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, 
-                   SUM(COALESCE(p.Scrap, 0)) as Observadas, 
-                   SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales 
-            FROM PROD_M_03 p 
-            LEFT JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON p.LineId = l.LineId
-            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
-            WHERE p.Year = {anio} AND p.Month <= {mes} 
-            GROUP BY p.Month, f.Name, l.Name, c.Name
-        """
+        # --- LÍNEA MODIFICADA (PROD_M_03 EN VEZ DE PROD_M_01) ---
+        q_trend_piezas_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
 
         q_m06 = f"SELECT 'GLOBAL' as Nivel, 'GLOBAL' as Grupo, Performance, Availability as Disp, Quality as Cal, Oee FROM PROD_M_06 WHERE Year = {anio} AND Month = {mes}"
         q_m05 = f"SELECT 'FABRICA' as Nivel, UPPER(f.Name) as Grupo, p.Performance, p.Availability as Disp, p.Quality as Cal, p.Oee FROM PROD_M_05 p JOIN FACTORY f ON p.FactoryId = f.FactoryId WHERE p.Year = {anio} AND p.Month = {mes}"
@@ -167,10 +173,12 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_trend_piezas = conn.query(q_trend_piezas_monthly).fillna(0)
         df_oficial = pd.concat([conn.query(q_m06).fillna(0), conn.query(q_m05).fillna(0), conn.query(q_m04).fillna(0)], ignore_index=True)
 
-        for df in [df_metrics, df_raw, df_piezas, df_trend_oee, df_trend_piezas]:
-            if not df.empty and 'Area' in df.columns:
-                df['Area'] = df['Area'].fillna('SIN AREA').astype(str).str.strip().str.upper()
-                df['Grupo'] = df['Grupo'].fillna('SIN GRUPO').astype(str).str.strip().str.upper()
+        if not df_oficial.empty:
+            df_oficial['Grupo'] = df_oficial.apply(
+                lambda r: MAPEO_LINEAS_WIIDEM.get(str(r['Grupo']).strip().upper(), str(r['Grupo']).strip().upper()) 
+                if r['Nivel'] == 'LINEA' else str(r['Grupo']).strip().upper(), 
+                axis=1
+            )
 
         cols_metrics = ['Buenas', 'Retrabajo', 'Observadas', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']
         for c in cols_metrics:
@@ -183,12 +191,12 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
             if col in df_trend_piezas.columns: df_trend_piezas[col] = pd.to_numeric(df_trend_piezas[col], errors='coerce').fillna(0)
 
         if not df_trend_oee.empty and not df_trend_piezas.empty:
-            df_trend = pd.merge(df_trend_piezas, df_trend_oee, on=['Month', 'Area', 'Grupo', 'Máquina'], how='outer').fillna(0)
+            df_trend = pd.merge(df_trend_piezas, df_trend_oee, on=['Month', 'Máquina'], how='outer').fillna(0)
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
         if df_raw.empty: 
-            df_raw = pd.DataFrame(columns=['Area', 'Grupo', 'Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
+            df_raw = pd.DataFrame(columns=['Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
             df_raw['Tiempo (Min)'] = pd.to_numeric(df_raw['Tiempo (Min)'], errors='coerce').fillna(0)
             for col in ['Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4']:
@@ -217,6 +225,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
                 n2 = row['Nivel Evento 2'].strip()
                 n3 = row['Nivel Evento 3'].strip()
                 n4 = row['Nivel Evento 4'].strip()
+                
                 if n4 and n4.lower() not in ['nan', 'none', 'null', '']: return n4
                 if n3 and n3.lower() not in ['nan', 'none', 'null', '']: return n3
                 if n2 and n2.lower() not in ['nan', 'none', 'null', '']: return n2
@@ -236,34 +245,42 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
 # 3. MOTOR: GESTIÓN A LA VISTA (DISPONIBILIDAD)
 # ==========================================
 def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw, df_trend, df_oficial, mes_seleccionado):
-    if area.upper() == "ESTAMPADO": theme_color = (15, 76, 129)
-    elif area.upper() == "SOLDADURA": theme_color = (211, 84, 0)
-    elif area.upper() == "SOLDADURA NUEVA": theme_color = (23, 165, 137) # Color distinguido (Teal)
-    else: theme_color = (40, 40, 40)
+    if area.upper() == "ESTAMPADO": theme_color = (15, 76, 129); grupos_area = GRUPOS_ESTAMPADO
+    elif area.upper() == "SOLDADURA": theme_color = (211, 84, 0); grupos_area = GRUPOS_SOLDADURA
+    else: theme_color = (40, 40, 40); grupos_area = GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA
 
+    mapa_limpio = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
     pdf = ReportePDF(f"GESTIÓN A LA VISTA - {area}", label_reporte, theme_color)
     
     df_m = df_metrics_pdf.copy(); df_t = df_trend.copy(); df_r = df_pdf_raw.copy()
+        
+    for d in [df_m, df_t, df_r]: 
+        if not d.empty and 'Máquina' in d.columns: d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa_limpio).fillna('Otro')
+        else: d['Grupo'] = 'Otro'
+            
     df_m_all = df_m.copy(); df_t_all = df_t.copy(); df_r_all = df_r.copy()
 
-    # FILTRADO EXACTO POR PLANTA INDEPENDIENTE
-    if area.upper() != "GLOBAL":
-        df_m = df_m[df_m['Area'] == area.upper()]
-        df_t = df_t[df_t['Area'] == area.upper()]
-        df_r = df_r[df_r['Area'] == area.upper()]
+    df_m = df_m[df_m['Grupo'].isin(grupos_area)]
+    df_t = df_t[df_t['Grupo'].isin(grupos_area)]
+    df_r = df_r[df_r['Grupo'].isin(grupos_area)]
     
-    grupos_area = sorted([g for g in df_m['Grupo'].unique() if g and g != 'SIN GRUPO'])
-    paginas = ['GENERAL'] if area.upper() == "GLOBAL" else ['GENERAL'] + grupos_area
+    paginas = ['GENERAL'] if area.upper() == "GLOBAL" else ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
 
+    # DEFINICIÓN DE OBJETIVOS FUMISCOR
     TARGETS = {"OEE": 0.75, "PERFORMANCE": 0.90, "DISPONIBILIDAD": 0.88, "CALIDAD": 0.95}
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
         if target == 'GENERAL':
-            df_m_target = df_m_all if area.upper() == 'GLOBAL' else df_m
-            df_t_target = df_t_all if area.upper() == 'GLOBAL' else df_t
-            df_r_target = df_r_all if area.upper() == 'GLOBAL' else df_r
+            if area.upper() == 'SOLDADURA':
+                df_m_target = df_m[df_m['Grupo'] != 'CELDAS NUEVAS']
+                df_t_target = df_t[df_t['Grupo'] != 'CELDAS NUEVAS']
+                df_r_target = df_r[df_r['Grupo'] != 'CELDAS NUEVAS']
+            elif area.upper() == 'GLOBAL':
+                df_m_target = df_m_all; df_t_target = df_t_all; df_r_target = df_r_all
+            else:
+                df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
         else:
             df_m_target = df_m[df_m['Grupo'] == target]; df_t_target = df_t[df_t['Grupo'] == target]; df_r_target = df_r[df_r['Grupo'] == target]
         
@@ -288,7 +305,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         if not df_oficial.empty:
             if target == 'GENERAL':
                 if area.upper() == 'GLOBAL': row = df_oficial[df_oficial['Nivel'] == 'GLOBAL']
-                else: row = df_oficial[(df_oficial['Nivel'] == 'FABRICA') & (df_oficial['Grupo'] == area.upper())]
+                else: row = df_oficial[(df_oficial['Nivel'] == 'FABRICA') & (df_oficial['Grupo'].str.contains(area.upper(), na=False))]
             else:
                 row = df_oficial[(df_oficial['Nivel'] == 'LINEA') & (df_oficial['Grupo'] == target)]
                 
@@ -309,6 +326,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             v_disp = (valid_m['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
             v_cal = (valid_m['Cal_Num'].sum() / t_piezas) if t_piezas > 0 else 0
         
+        # Corrección dinámica para porcentajes
         if v_oee > 1.5 or v_perf > 1.5 or v_disp > 1.5:
             v_oee /= 100.0; v_perf /= 100.0; v_disp /= 100.0; v_cal /= 100.0
             
@@ -322,31 +340,46 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         for i, (lbl, data) in enumerate(kpis.items()):
             v = data["val"]
             obj = data["obj"]
-            bg_col, txt_col = ((231, 76, 60), 255) if v < obj else ((46, 204, 113), 255)
+            
+            # Lógica Binaria de Color: Rojo si es menor, Verde si es mayor o igual
+            if v < obj: bg_col, txt_col = (231, 76, 60), 255  # Rojo
+            else: bg_col, txt_col = (46, 204, 113), 255       # Verde
+
             x = 10 + (i * 68.5)
             pdf.draw_kpi_panel(x, y_kpi:=25, 65, 20, bg_color=bg_col)
             pdf.set_xy(x, y_kpi + 2); pdf.set_font("Arial", 'B', 10); pdf.set_text_color(txt_col); pdf.cell(65, 6, lbl, 0, 1, 'L')
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{v*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
+        # Gráficos de Tendencia con Acumulado y Sincronizados
         def add_trend_bar(df_in, col, title, x_pos, y_pos, target_val, off_val=None, draw_large=False):
             if df_in.empty: return
+            
             cols_req = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales']
             for c in cols_req:
                 if c in df_in.columns: df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
             
-            df_valid = df_in[(df_in['T_Planificado'] > 0) & (df_in['T_Operativo'] > 0)]
+            if 'Totales' in df_in.columns: df_valid = df_in[(df_in['T_Planificado'] > 0) & (df_in['T_Operativo'] > 0) & (df_in['Totales'] > 0)]
+            else: df_valid = df_in[(df_in['T_Planificado'] > 0) & (df_in['T_Operativo'] > 0)]
+                
             if df_valid.empty: return
             
             df_g = df_valid.groupby('Month')[cols_req].sum().reset_index()
+            if 'Month' in df_g.columns: df_g['Month'] = df_g['Month'].astype(int)
+            
             if col == 'OEE': df_g['Val'] = df_g.apply(lambda r: r['OEE_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
             elif col == 'PERFORMANCE': df_g['Val'] = df_g.apply(lambda r: r['Perf_Num'] / r['T_Operativo'] if r.get('T_Operativo', 0) > 0 else 0, axis=1)
             elif col == 'DISPONIBILIDAD': df_g['Val'] = df_g.apply(lambda r: r['Disp_Num'] / r['T_Planificado'] if r.get('T_Planificado', 0) > 0 else 0, axis=1)
             elif col == 'CALIDAD': df_g['Val'] = df_g.apply(lambda r: r['Cal_Num'] / r['Totales'] if r.get('Totales', 0) > 0 else 0, axis=1)
+            else: return
             
             if df_g['Val'].max() > 1.5: df_g['Val'] /= 100.0
-            if off_val is not None: df_g.loc[df_g['Month'] == mes_seleccionado, 'Val'] = off_val
 
+            # Sincronización del mes actual para que coincida exactamente con el recuadro superior
+            if off_val is not None:
+                df_g.loc[df_g['Month'] == mes_seleccionado, 'Val'] = off_val
+
+            # Cálculo de Acumulado (YTD Histórico)
             ytd_v = 0
             if col == 'OEE': ytd_v = df_valid['OEE_Num'].sum() / df_valid['T_Planificado'].sum() if df_valid['T_Planificado'].sum() > 0 else 0
             elif col == 'PERFORMANCE': ytd_v = df_valid['Perf_Num'].sum() / df_valid['T_Operativo'].sum() if df_valid['T_Operativo'].sum() > 0 else 0
@@ -354,30 +387,41 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             elif col == 'CALIDAD': ytd_v = df_valid['Cal_Num'].sum() / df_valid['Totales'].sum() if df_valid['Totales'].sum() > 0 else 0
             if ytd_v > 1.5: ytd_v /= 100.0
 
-            df_g['Mes_Str'] = df_g['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
-            df_g['Color'] = df_g['Val'].apply(lambda x: '#2ECC71' if x >= target_val else '#E74C3C')
+            # Lógica Binaria de Colores para el gráfico
+            def get_c(v): return '#2ECC71' if v >= target_val else '#E74C3C'
             
-            ytd_row = pd.DataFrame([{'Month': 99, 'Mes_Str': 'Acum.', 'Val': ytd_v, 'Color': '#2ECC71' if ytd_v >= target_val else '#E74C3C'}])
+            df_g['Mes_Str'] = df_g['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
+            df_g['Color'] = df_g['Val'].apply(get_c)
+            
+            # Incorporación de la barra de "Acum." solicitada
+            ytd_row = pd.DataFrame([{'Month': 99, 'Mes_Str': 'Acum.', 'Val': ytd_v, 'Color': get_c(ytd_v)}])
             df_g = pd.concat([df_g, ytd_row], ignore_index=True)
 
             max_y = df_g['Val'].max() if not df_g.empty else 1
             upper_limit = max(1.1, max_y * 1.3, target_val * 1.2)
 
             fig = go.Figure(data=[go.Bar(x=df_g['Mes_Str'], y=df_g['Val'], marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.8)', width=2)), text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.85)])
-            fig.add_hline(y=target_val, line_dash="dash", line_color="#2ECC71", line_width=2, annotation_text=f"<b>Obj: {target_val*100:.0f}%</b>", annotation_font_color='black', annotation_position="top left")
-            if len(df_g) > 1: fig.add_vline(x=len(df_g) - 1.5, line_width=2, line_dash="dot", line_color="rgba(0,0,0,0.6)")
             
-            fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=35, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False))
+            # Línea de Meta Unificada (Verde)
+            fig.add_hline(y=target_val, line_dash="dash", line_color="#2ECC71", line_width=2, annotation_text=f"<b>Obj: {target_val*100:.0f}%</b>", annotation_font_color='black', annotation_position="top left")
+            
+            # Separador visual de "Acum."
+            if len(df_g) > 1:
+                fig.add_vline(x=len(df_g) - 1.5, line_width=2, line_dash="dot", line_color="rgba(0,0,0,0.6)")
+            
+            fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(t=35, b=20, l=10, r=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, upper_limit], visible=False), xaxis_title="")
             fig.update_traces(textfont=dict(color='black', size=11, family="Arial"), cliponaxis=False)
             
             w_img, h_img = (600, 300) if draw_large else (600, 220)
             w_pdf = 132 if not draw_large else 134
             img = save_chart(fig, w_img, h_img); pdf.image(img, x=x_pos+2, y=y_pos+2, w=w_pdf); os.remove(img)
 
+        # Inserción de Paneles y Gráficos
         if area.upper() == "GLOBAL":
             pdf.draw_panel(10, 48, 136, 75); pdf.draw_panel(149, 48, 138, 75)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, TARGETS["OEE"], v_oee, draw_large=True)
             add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, TARGETS["PERFORMANCE"], v_perf, draw_large=True) 
+            
             pdf.draw_panel(10, 126, 136, 75); pdf.draw_panel(149, 126, 138, 75)
             add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 126, TARGETS["DISPONIBILIDAD"], v_disp, draw_large=True)
             add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 126, TARGETS["CALIDAD"], v_cal, draw_large=True)
@@ -385,6 +429,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, TARGETS["OEE"], v_oee)
             add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, TARGETS["PERFORMANCE"], v_perf) 
+            
             pdf.draw_panel(10, 102, 136, 52); pdf.draw_panel(149, 102, 138, 52)
             add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102, TARGETS["DISPONIBILIDAD"], v_disp)
             add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102, TARGETS["CALIDAD"], v_cal)
@@ -393,10 +438,12 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
             
             df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
+            
             if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
                 excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
                 mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
                 df_f_puras = df_f[mask_puras]
+                
                 top5 = df_f_puras.groupby('Detalle_Final')['Tiempo (Min)'].sum().nlargest(5).reset_index()
                 
                 pdf.set_xy(10, 162); pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(*theme_color); pdf.set_text_color(255)
@@ -411,10 +458,11 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 
                 df_macro = df_f.groupby('Categoria_Macro')['Tiempo (Min)'].sum().reset_index()
                 df_macro['%'] = df_macro['Tiempo (Min)'] / t_total
-                df_macro['Y'] = "Pérdidas"; df_macro['Leyenda'] = df_macro.apply(lambda r: f"{r['Categoria_Macro']} ({r['Tiempo (Min)']/60:.1f} hs | {r['%']:.1%})", axis=1)
+                df_macro['Y'] = "Pérdidas"
+                df_macro['Leyenda'] = df_macro.apply(lambda r: f"{r['Categoria_Macro']} ({r['Tiempo (Min)']/60:.1f} hs | {r['%']:.1%})", axis=1)
                 
                 fig_stack = px.bar(df_macro, x='%', y='Y', color='Leyenda', orientation='h', color_discrete_sequence=px.colors.qualitative.Safe)
-                fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9)
+                fig_stack.update_traces(texttemplate='<b>%{x:.1%}</b>', textposition='inside', marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.9, textfont=dict(color='black', size=11))
                 fig_stack.update_layout(barmode='stack', title=dict(text="<b>PROPORCIÓN DE PÉRDIDAS ÁREAS MACRO (100%)</b>", font=dict(family="Times", size=13, color="black")), xaxis=dict(visible=False, range=[0, 1]), yaxis=dict(visible=False), margin=dict(t=30, b=5, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, title="", font=dict(size=10)))
                 img_stack = save_chart(fig_stack, 600, 180); pdf.image(img_stack, 151, 158, 134); os.remove(img_stack)
             
@@ -424,26 +472,29 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 # 4. MOTOR: INFORME PRODUCTIVO (CALIDAD)
 # ==========================================
 def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_sel, anio_sel, hs_rt):
-    if area.upper() == "ESTAMPADO": theme_color = (15, 76, 129); scrap_c = '#002147'
-    elif area.upper() == "SOLDADURA": theme_color = (211, 84, 0); scrap_c = '#722F37'
-    elif area.upper() == "SOLDADURA NUEVA": theme_color = (23, 165, 137); scrap_c = '#1A4D43'
-    else: theme_color = (40, 40, 40); scrap_c = '#333333'
-    
+    theme_color = (15, 76, 129) if area.upper() == "ESTAMPADO" else (211, 84, 0)
     theme_hex = '#%02x%02x%02x' % theme_color
+    scrap_c = '#002147' if area.upper() == "ESTAMPADO" else '#722F37' 
     rt_c = theme_hex
-    
+    grupos = GRUPOS_ESTAMPADO if area.upper() == "ESTAMPADO" else GRUPOS_SOLDADURA
     pdf = ReportePDF(f"INFORME PRODUCTIVO - {area}", label_reporte, theme_color)
-    df_t = df_trend.copy(); df_p = df_piezas.copy()
     
-    # FILTRADO EXACTO POR PLANTA INDEPENDIENTE
-    df_t = df_t[df_t['Area'] == area.upper()]
-    df_p = df_p[df_p['Area'] == area.upper()]
+    mapa_limpio = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
+    
+    df_t = df_trend.copy(); df_p = df_piezas.copy(); mapa = {k.upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
+    
+    for d in [df_t, df_p]: 
+        if not d.empty and 'Máquina' in d.columns:
+            d['Grupo'] = d['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
+        else: d['Grupo'] = 'Otro'
 
-    grupos_area = sorted([g for g in df_t['Grupo'].unique() if g and g != 'SIN GRUPO'])
-    paginas = ['GENERAL'] + grupos_area
+    df_t = df_t[df_t['Grupo'].isin(grupos)]; df_p = df_p[df_p['Grupo'].isin(grupos)]
+    paginas = ['GENERAL'] + [g for g in grupos if g in df_t['Grupo'].unique()]
 
-    target_scrap = 0.50 if area.upper() == "ESTAMPADO" else 0.30
-    target_rt = 2.00
+    if area.upper() == "ESTAMPADO":
+        target_scrap = 0.50; target_rt = 2.00
+    else:
+        target_scrap = 0.30; target_rt = 2.00
 
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
@@ -462,22 +513,31 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
             if col in df_t_target.columns: df_t_target[col] = pd.to_numeric(df_t_target[col], errors='coerce').fillna(0)
 
         df_ev = df_t_target.groupby('Month')[['Buenas', 'Observadas', 'Retrabajo', 'Totales']].sum().reset_index()
+        if 'Month' in df_ev.columns: df_ev['Month'] = df_ev['Month'].astype(int)
+        
         df_ev['Totales_Div'] = df_ev['Totales'].apply(lambda x: x if x > 0 else 1)
         df_ev['% Scrap'] = ((df_ev['Observadas'] / df_ev['Totales_Div']) * 100).round(2)
         df_ev['% RT'] = ((df_ev['Retrabajo'] / df_ev['Totales_Div']) * 100).round(2)
         df_ev['Mes_Str'] = df_ev['Month'].map({1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'})
 
+        df_ev['Color_Scrap'] = df_ev['% Scrap'].apply(lambda x: '#E74C3C' if x > target_scrap else '#2ECC71')
+        df_ev['Color_RT'] = df_ev['% RT'].apply(lambda x: '#E74C3C' if x > target_rt else '#2ECC71')
+
         f1 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['Totales'], marker_color=theme_hex, text=df_ev['Totales'], texttemplate='<b>%{text:.3s}</b>')])
-        f2 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['% Scrap'], marker_color=df_ev['% Scrap'].apply(lambda x: '#E74C3C' if x > target_scrap else '#2ECC71'), text=df_ev['% Scrap'], texttemplate='<b>%{text:.2f}%</b>')])
-        f3 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['% RT'], marker_color=df_ev['% RT'].apply(lambda x: '#E74C3C' if x > target_rt else '#2ECC71'), text=df_ev['% RT'], texttemplate='<b>%{text:.2f}%</b>')])
+        f2 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['% Scrap'], marker_color=df_ev['Color_Scrap'], text=df_ev['% Scrap'], texttemplate='<b>%{text:.2f}%</b>')])
+        f3 = go.Figure(data=[go.Bar(x=df_ev['Mes_Str'], y=df_ev['% RT'], marker_color=df_ev['Color_RT'], text=df_ev['% RT'], texttemplate='<b>%{text:.2f}%</b>')])
         
         titles = ["PIEZAS PRODUCIDAS MES A MES", "% DE SCRAP MES A MES", "% DE RT MES A MES"]
         for i, f in enumerate([f1, f2, f3]): 
             max_y = df_ev['Totales'].max() if i==0 else (df_ev['% Scrap'].max() if i==1 else df_ev['% RT'].max())
-            upper_limit = max_y * 1.3 if i==0 else max(0.2, max_y * 1.3, (target_scrap if i==1 else target_rt) * 1.5)
-            if i != 0: f.add_hline(y=target_scrap if i==1 else target_rt, line_dash="dash", line_width=2, line_color="#E74C3C", annotation_text=f"<b>Obj: {target_scrap if i==1 else target_rt}%</b>", annotation_font_color='black')
+            if i == 0: upper_limit = max_y * 1.3 if max_y > 0 else 1
+            else: 
+                current_target = target_scrap if i == 1 else target_rt
+                upper_limit = max(0.2, max_y * 1.3, current_target * 1.5)
+                f.add_hline(y=current_target, line_dash="dash", line_width=2, line_color="#E74C3C", annotation_text=f"<b>Obj: {current_target}%</b>", annotation_font_color='black')
+                
             f.update_yaxes(range=[0, upper_limit])
-            f.update_layout(title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(visible=False))
+            f.update_layout(title=dict(text=f"<b>{titles[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=10, t=30, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title="", yaxis=dict(visible=False))
             f.update_traces(textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
         h_box = 60; pdf.draw_panel(10, 22, 135, h_box); pdf.draw_panel(10, 85, 135, h_box); pdf.draw_panel(10, 148, 135, h_box)
@@ -489,13 +549,15 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
         if not df_p_target.empty:
             t_s = df_p_target.groupby('Pieza')['Scrap'].sum().nlargest(5).reset_index().sort_values('Scrap', ascending=True)
             t_rt = df_p_target.groupby('Pieza')['RT'].sum().nlargest(5).reset_index().sort_values('RT', ascending=True)
+            
             f4 = px.bar(t_s, x='Scrap', y='Pieza', orientation='h', color_discrete_sequence=[scrap_c])
             f5 = px.bar(t_rt, x='RT', y='Pieza', orientation='h', color_discrete_sequence=[rt_c])
             
             titles_right = ["TOP 5 SCRAP POR PIEZA", "TOP 5 RT POR PIEZA"]
             for i, f in enumerate([f4, f5]):
                 max_x = t_s['Scrap'].max() if i==0 else t_rt['RT'].max()
-                f.update_xaxes(range=[0, max_x * 1.3 if max_x > 0 else 1])
+                upper_limit = max_x * 1.3 if max_x > 0 else 1
+                f.update_xaxes(range=[0, upper_limit])
                 f.update_layout(title=dict(text=f"<b>{titles_right[i]}</b>", font=dict(family="Times", size=13, color="black")), margin=dict(l=10, r=30, t=35, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(title="", automargin=True, tickfont=dict(color='black', size=10)))
                 f.update_traces(texttemplate='<b>%{x}</b>', textposition="outside", cliponaxis=False, textfont=dict(color='black', size=11, family="Arial"), marker_line_color='rgba(0,0,0,0.8)', marker_line_width=2, opacity=0.85)
 
@@ -517,8 +579,12 @@ st.divider()
 st.write("### 1. Seleccione el Período (Mensual)")
 col1, col2 = st.columns(2)
 today = pd.to_datetime("today").date()
-with col1: m_sel = st.selectbox("Mes", range(1, 13), index=today.month-1)
-with col2: a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2)
+with col1: 
+    m_sel = st.selectbox("Mes", range(1, 13), index=today.month-1)
+with col2: 
+    a_sel = st.selectbox("Año", [2024, 2025, 2026], index=2)
+
+mes_str = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}[m_sel]
 
 ini = pd.to_datetime(f"{a_sel}-{m_sel}-01")
 fin = pd.to_datetime(f"{a_sel}-{m_sel}-{calendar.monthrange(a_sel, m_sel)[1]}")
@@ -531,17 +597,26 @@ st.write("### 2. Datos Manuales (Informe Productivo)")
 hs_rt = st.number_input("Horas de RT (Solo válido para Estampado General):", min_value=0.0, max_value=1000.0, value=0.0, step=1.0)
 
 st.divider()
-st.write("### 2.5. Corrección de Indicadores Oficiales (Wiidem)")
-st.info("Valores que figurarán en el PDF. Si Wiidem no los calculó, el sistema los pre-calculó automáticamente.")
 
+# --- NUEVA SECCIÓN DE EDICIÓN DE INDICADORES (CON PRE-CÁLCULO AUTOMÁTICO) ---
+st.write("### 2.5. Corrección de Indicadores Oficiales (Wiidem)")
+st.info("Estos son los valores que figurarán en el PDF. Si Wiidem los tiene calculados, aparecen aquí. Si no, **el sistema los pre-calculó automáticamente para evitar que queden en 0**. Puede editarlos libremente si es necesario.")
+
+# 1. Función para pre-calcular los valores si Wiidem no los trae
 def calcular_kpis_base(df_m_raw):
     if df_m_raw.empty: return pd.DataFrame()
-    df = df_m_raw.copy(); df['Totales'] = df['Buenas'] + df['Retrabajo'] + df['Observadas']
-    resultados = []
+    mapa = {str(k).strip().upper(): str(v).strip().upper() for k, v in MAQUINAS_MAP.items()}
+    df = df_m_raw.copy()
+    df['Grupo'] = df['Máquina'].astype(str).str.strip().str.upper().map(mapa).fillna('Otro')
+    df['Totales'] = df['Buenas'] + df['Retrabajo'] + df['Observadas']
     
+    resultados = []
     def calc_r(name, nivel, data):
         if data.empty: return {'Nivel': nivel, 'Grupo': name, 'Performance': 0.0, 'Disp': 0.0, 'Cal': 0.0, 'Oee': 0.0}
-        t_plan, t_op, t_pz = data['T_Planificado'].sum(), data['T_Operativo'].sum(), data['Totales'].sum()
+        t_plan = data['T_Planificado'].sum()
+        t_op = data['T_Operativo'].sum()
+        t_pz = data['Totales'].sum()
+        
         return {
             'Nivel': nivel, 'Grupo': name,
             'Performance': (data['Perf_Num'].sum() / t_op * 100) if t_op > 0 else 0,
@@ -551,37 +626,44 @@ def calcular_kpis_base(df_m_raw):
         }
 
     resultados.append(calc_r('GLOBAL', 'GLOBAL', df))
-    
-    # DINÁMICO: Extrae cada Planta/Fábrica real de la Base de Datos de manera independiente
-    areas_unicas = sorted([a for a in df['Area'].unique() if pd.notna(a) and a != 'SIN AREA'])
-    for a in areas_unicas:
-        resultados.append(calc_r(a, 'FABRICA', df[df['Area'] == a]))
-        
-    grupos_unicos = sorted([g for g in df['Grupo'].unique() if pd.notna(g) and g != 'SIN GRUPO'])
-    for g in grupos_unicos:
+    resultados.append(calc_r('ESTAMPADO', 'FABRICA', df[df['Grupo'].isin(GRUPOS_ESTAMPADO)]))
+    resultados.append(calc_r('SOLDADURA', 'FABRICA', df[df['Grupo'].isin(GRUPOS_SOLDADURA)]))
+    for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA:
         resultados.append(calc_r(g, 'LINEA', df[df['Grupo'] == g]))
         
     return pd.DataFrame(resultados)
 
+# 2. Generamos la base calculada internamente
 df_base_editor = calcular_kpis_base(df_m)
 
+# 3. Cruzamos con Wiidem (prioridad a Wiidem si > 0)
 if not df_base_editor.empty and not df_oficial.empty:
     df_base_editor.set_index(['Nivel', 'Grupo'], inplace=True)
     df_of_idx = df_oficial.set_index(['Nivel', 'Grupo'])
     for col in ['Performance', 'Disp', 'Cal', 'Oee']:
         if col in df_of_idx.columns:
-            df_base_editor.update(df_of_idx[df_of_idx[col] > 0][col])
+            valid_vals = df_of_idx[df_of_idx[col] > 0][col]
+            df_base_editor.update(valid_vals)
     df_base_editor.reset_index(inplace=True)
+elif df_base_editor.empty:
+    # Fallback structure just in case there's no data at all
+    estruct = [{'Nivel': 'GLOBAL', 'Grupo': 'GLOBAL'}, {'Nivel': 'FABRICA', 'Grupo': 'ESTAMPADO'}, {'Nivel': 'FABRICA', 'Grupo': 'SOLDADURA'}]
+    estruct += [{'Nivel': 'LINEA', 'Grupo': g} for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA]
+    df_base_editor = pd.DataFrame(estruct)
+    df_base_editor[['Performance', 'Disp', 'Cal', 'Oee']] = 0.0
 
+# 4. Mostramos el editor
 df_oficial_editado = st.data_editor(
-    df_base_editor, use_container_width=True, hide_index=True,
+    df_base_editor,
+    use_container_width=True,
+    hide_index=True,
     column_config={
         "Nivel": st.column_config.TextColumn("Nivel", disabled=True),
         "Grupo": st.column_config.TextColumn("Grupo", disabled=True),
-        "Performance": st.column_config.NumberColumn("Performance", format="%.4f"),
-        "Disp": st.column_config.NumberColumn("Disponibilidad", format="%.4f"),
-        "Cal": st.column_config.NumberColumn("Calidad", format="%.4f"),
-        "Oee": st.column_config.NumberColumn("OEE", format="%.4f"),
+        "Performance": st.column_config.NumberColumn("Performance", format="%.4f", step=0.01),
+        "Disp": st.column_config.NumberColumn("Disponibilidad", format="%.4f", step=0.01),
+        "Cal": st.column_config.NumberColumn("Calidad", format="%.4f", step=0.01),
+        "Oee": st.column_config.NumberColumn("OEE", format="%.4f", step=0.01),
     }
 )
 
@@ -593,20 +675,18 @@ with c_d:
     st.markdown("#### ⚙️ Disponibilidad (OEE)")
     if not df_m.empty:
         if st.button("⚙️ Preparar PDF Estampado", use_container_width=True):
-            st.session_state['oee_est'] = crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
-        if 'oee_est' in st.session_state:
-            st.download_button("📥 Bajar PDF Estampado", data=st.session_state['oee_est'], file_name="FUMISCOR_OEE_ESTAMPADO.pdf", mime="application/pdf", use_container_width=True)
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_oee_est_fumis'] = crear_pdf_gestion_a_la_vista("Estampado", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
+        if 'pdf_oee_est_fumis' in st.session_state:
+            st.download_button("📥 Bajar PDF Estampado", data=st.session_state['pdf_oee_est_fumis'], file_name="FUMISCOR_Gestion_Vista_ESTAMPADO.pdf", mime="application/pdf", use_container_width=True)
+            
         st.write("---")
+        
         if st.button("⚙️ Preparar PDF Soldadura", use_container_width=True):
-            st.session_state['oee_sol'] = crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
-        if 'oee_sol' in st.session_state:
-            st.download_button("📥 Bajar PDF Soldadura", data=st.session_state['oee_sol'], file_name="FUMISCOR_OEE_SOLDADURA.pdf", mime="application/pdf", use_container_width=True)
-        st.write("---")
-        # NUEVA PLANTA SEPARADA EN LA INTERFAZ
-        if st.button("⚙️ Preparar PDF Soldadura Nueva", use_container_width=True):
-            st.session_state['oee_sol_nva'] = crear_pdf_gestion_a_la_vista("Soldadura Nueva", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
-        if 'oee_sol_nva' in st.session_state:
-            st.download_button("📥 Bajar PDF Soldadura Nueva", data=st.session_state['oee_sol_nva'], file_name="FUMISCOR_OEE_SOLDADURA_NUEVA.pdf", mime="application/pdf", use_container_width=True)
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_oee_sol_fumis'] = crear_pdf_gestion_a_la_vista("Soldadura", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
+        if 'pdf_oee_sol_fumis' in st.session_state:
+            st.download_button("📥 Bajar PDF Soldadura", data=st.session_state['pdf_oee_sol_fumis'], file_name="FUMISCOR_Gestion_Vista_SOLDADURA.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.error("No hay datos.")
 
@@ -614,20 +694,18 @@ with c_p:
     st.markdown("#### 🏭 Informe Productivo (Calidad)")
     if not df_t.empty:
         if st.button("🏭 Preparar Prod. Estampado", use_container_width=True):
-            st.session_state['prod_est'] = crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt)
-        if 'prod_est' in st.session_state:
-            st.download_button("📥 Bajar Prod. Estampado", data=st.session_state['prod_est'], file_name="FUMISCOR_PROD_ESTAMPADO.pdf", mime="application/pdf", use_container_width=True)
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_prod_est_fumis'] = crear_pdf_informe_productivo("Estampado", lab, df_t, df_p, m_sel, a_sel, hs_rt)
+        if 'pdf_prod_est_fumis' in st.session_state:
+            st.download_button("📥 Bajar Prod. Estampado", data=st.session_state['pdf_prod_est_fumis'], file_name="FUMISCOR_Productivo_Vista_ESTAMPADO.pdf", mime="application/pdf", use_container_width=True)
+        
         st.write("---")
+        
         if st.button("🏭 Preparar Prod. Soldadura", use_container_width=True):
-            st.session_state['prod_sol'] = crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt)
-        if 'prod_sol' in st.session_state:
-            st.download_button("📥 Bajar Prod. Soldadura", data=st.session_state['prod_sol'], file_name="FUMISCOR_PROD_SOLDADURA.pdf", mime="application/pdf", use_container_width=True)
-        st.write("---")
-        # NUEVA PLANTA SEPARADA EN LA INTERFAZ
-        if st.button("🏭 Preparar Prod. Soldadura Nueva", use_container_width=True):
-            st.session_state['prod_sol_nva'] = crear_pdf_informe_productivo("Soldadura Nueva", lab, df_t, df_p, m_sel, a_sel, hs_rt)
-        if 'prod_sol_nva' in st.session_state:
-            st.download_button("📥 Bajar Prod. Soldadura Nueva", data=st.session_state['prod_sol_nva'], file_name="FUMISCOR_PROD_SOLDADURA_NUEVA.pdf", mime="application/pdf", use_container_width=True)
+            with st.spinner("Generando documento..."):
+                st.session_state['pdf_prod_sol_fumis'] = crear_pdf_informe_productivo("Soldadura", lab, df_t, df_p, m_sel, a_sel, hs_rt)
+        if 'pdf_prod_sol_fumis' in st.session_state:
+            st.download_button("📥 Bajar Prod. Soldadura", data=st.session_state['pdf_prod_sol_fumis'], file_name="FUMISCOR_Productivo_Vista_SOLDADURA.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.error("No hay datos.")
 
@@ -635,8 +713,9 @@ with c_g:
     st.markdown("#### 🌎 Reporte Maestro")
     if not df_m.empty:
         if st.button("🌎 Preparar PDF Global", use_container_width=True):
-            st.session_state['oee_glob'] = crear_pdf_gestion_a_la_vista("GLOBAL", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
-        if 'oee_glob' in st.session_state:
-            st.download_button("📥 Bajar PDF Global", data=st.session_state['oee_glob'], file_name="FUMISCOR_GENERAL.pdf", mime="application/pdf", use_container_width=True)
+            with st.spinner("Generando documento maestro..."):
+                st.session_state['pdf_oee_glob_fumis'] = crear_pdf_gestion_a_la_vista("GLOBAL", lab, df_m, df_r, df_t, df_oficial_editado, m_sel)
+        if 'pdf_oee_glob_fumis' in st.session_state:
+            st.download_button("📥 Bajar PDF Global", data=st.session_state['pdf_oee_glob_fumis'], file_name="FUMISCOR_Vista_GENERAL.pdf", mime="application/pdf", use_container_width=True)
     else:
         st.error("No hay datos.")
