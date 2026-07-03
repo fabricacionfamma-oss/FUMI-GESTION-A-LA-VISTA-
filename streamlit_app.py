@@ -6,20 +6,21 @@ import tempfile
 import os
 import calendar
 from fpdf import FPDF
-from datetime import timedelta
 
 # ==========================================
-# 0. CONFIGURACIÓN
+# 0. CONFIGURACIÓN INICIAL
 # ==========================================
 st.set_page_config(page_title="Reportes Fumiscor", layout="wide", page_icon="📊")
 
 # ==========================================
-# 1. FUNCIONES AUXILIARES Y PDF
+# 1. FUNCIONES AUXILIARES Y CLASE PDF
 # ==========================================
 class ReportePDF(FPDF):
     def __init__(self, area, fecha_str, theme_color):
         super().__init__()
-        self.area = area; self.fecha_str = fecha_str; self.theme_color = theme_color
+        self.area = area
+        self.fecha_str = fecha_str
+        self.theme_color = theme_color
 
     def add_gradient_background(self):
         r1, g1, b1 = 240, 242, 246
@@ -65,7 +66,8 @@ def clean_text(text):
 def save_chart(fig, w=600, h=300):
     fig.update_layout(width=w, height=h, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
+        fig.write_image(tmp.name, engine="kaleido", scale=2.5)
+        return tmp.name
 
 # ==========================================
 # 2. CARGA DE DATOS (NATIVA DESDE SQL)
@@ -78,6 +80,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         ini_str = fecha_ini.strftime('%Y-%m-%d 00:00:00')
         fin_str = fecha_fin.strftime('%Y-%m-%d 23:59:59')
         
+        # 1. METRICAS PROD_M_03
         q_metrics = f"""
             SELECT UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, 
                    SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, 
@@ -88,20 +91,21 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
                    SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, 
                    SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num 
             FROM PROD_M_03 p 
-            JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON c.LineId = l.LineId
-            LEFT JOIN FACTORY f ON l.FactoryId = f.FactoryId
+            LEFT JOIN CELL c ON p.CellId = c.CellId 
+            LEFT JOIN LINE l ON p.LineId = l.LineId
+            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
             WHERE p.Year = {anio} AND p.Month = {mes} 
             GROUP BY f.Name, l.Name, c.Name
         """
         
+        # 2. EVENTOS EVENT_01
         q_event = f"""
             SELECT UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, e.Interval as [Tiempo (Min)], 
                    t1.Name as [Nivel Evento 1], t2.Name as [Nivel Evento 2], t3.Name as [Nivel Evento 3], t4.Name as [Nivel Evento 4] 
             FROM EVENT_01 e 
             LEFT JOIN CELL c ON e.CellId = c.CellId 
-            LEFT JOIN LINE l ON c.LineId = l.LineId
-            LEFT JOIN FACTORY f ON l.FactoryId = f.FactoryId
+            LEFT JOIN LINE l ON e.LineId = l.LineId
+            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
             LEFT JOIN EVENTTYPE t1 ON e.EventTypeLevel1 = t1.EventTypeId 
             LEFT JOIN EVENTTYPE t2 ON e.EventTypeLevel2 = t2.EventTypeId 
             LEFT JOIN EVENTTYPE t3 ON e.EventTypeLevel3 = t3.EventTypeId 
@@ -109,18 +113,20 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
             WHERE e.Date BETWEEN '{ini_str}' AND '{fin_str}'
         """
         
+        # 3. PIEZAS PROD_M_01
         q_piezas = f"""
             SELECT UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, COALESCE(pr.Code, 'S/C') as Pieza, 
                    SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT 
             FROM PROD_M_01 p 
-            JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON c.LineId = l.LineId
-            LEFT JOIN FACTORY f ON l.FactoryId = f.FactoryId
+            LEFT JOIN CELL c ON p.CellId = c.CellId 
+            LEFT JOIN LINE l ON p.LineId = l.LineId
+            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
             LEFT JOIN PRODUCT pr ON p.ProductId = pr.ProductId 
             WHERE p.Year = {anio} AND p.Month = {mes} 
             GROUP BY f.Name, l.Name, c.Name, pr.Code
         """
 
+        # 4. TENDENCIAS OEE PROD_M_03
         q_trend_oee_monthly = f"""
             SELECT p.Month, UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, 
                    SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, 
@@ -130,30 +136,33 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
                    SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, 
                    SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num 
             FROM PROD_M_03 p 
-            JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON c.LineId = l.LineId
-            LEFT JOIN FACTORY f ON l.FactoryId = f.FactoryId
+            LEFT JOIN CELL c ON p.CellId = c.CellId 
+            LEFT JOIN LINE l ON p.LineId = l.LineId
+            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
             WHERE p.Year = {anio} AND p.Month <= {mes} 
             GROUP BY p.Month, f.Name, l.Name, c.Name
         """
         
+        # 5. TENDENCIAS PIEZAS PROD_M_01
         q_trend_piezas_monthly = f"""
             SELECT p.Month, UPPER(f.Name) as Area, UPPER(l.Name) as Grupo, c.Name as Máquina, 
                    SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, 
                    SUM(COALESCE(p.Scrap, 0)) as Observadas, 
                    SUM(COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0)) as Totales 
             FROM PROD_M_01 p 
-            JOIN CELL c ON p.CellId = c.CellId 
-            LEFT JOIN LINE l ON c.LineId = l.LineId
-            LEFT JOIN FACTORY f ON l.FactoryId = f.FactoryId
+            LEFT JOIN CELL c ON p.CellId = c.CellId 
+            LEFT JOIN LINE l ON p.LineId = l.LineId
+            LEFT JOIN FACTORY f ON c.FactoryId = f.FactoryId
             WHERE p.Year = {anio} AND p.Month <= {mes} 
             GROUP BY p.Month, f.Name, l.Name, c.Name
         """
 
+        # INDICADORES OFICIALES WIIDEM
         q_m06 = f"SELECT 'GLOBAL' as Nivel, 'GLOBAL' as Grupo, Performance, Availability as Disp, Quality as Cal, Oee FROM PROD_M_06 WHERE Year = {anio} AND Month = {mes}"
         q_m05 = f"SELECT 'FABRICA' as Nivel, UPPER(f.Name) as Grupo, p.Performance, p.Availability as Disp, p.Quality as Cal, p.Oee FROM PROD_M_05 p JOIN FACTORY f ON p.FactoryId = f.FactoryId WHERE p.Year = {anio} AND p.Month = {mes}"
         q_m04 = f"SELECT 'LINEA' as Nivel, UPPER(l.Name) as Grupo, p.Performance, p.Availability as Disp, p.Quality as Cal, p.Oee FROM PROD_M_04 p JOIN LINE l ON p.LineId = l.LineId WHERE p.Year = {anio} AND p.Month = {mes}"
 
+        # Ejecutamos las consultas
         df_metrics = conn.query(q_metrics).fillna(0)
         df_raw = conn.query(q_event)
         df_piezas = conn.query(q_piezas).fillna(0)
@@ -161,12 +170,13 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         df_trend_piezas = conn.query(q_trend_piezas_monthly).fillna(0)
         df_oficial = pd.concat([conn.query(q_m06).fillna(0), conn.query(q_m05).fillna(0), conn.query(q_m04).fillna(0)], ignore_index=True)
 
-        # Limpieza estándar para evitar nulos en Area y Grupo
+        # Normalizamos Area y Grupo por si alguna fila no tiene el dato en la base de datos
         for df in [df_metrics, df_raw, df_piezas, df_trend_oee, df_trend_piezas]:
             if not df.empty and 'Area' in df.columns:
                 df['Area'] = df['Area'].fillna('SIN AREA').astype(str).str.strip().str.upper()
                 df['Grupo'] = df['Grupo'].fillna('SIN GRUPO').astype(str).str.strip().str.upper()
 
+        # Conversiones Numéricas
         cols_metrics = ['Buenas', 'Retrabajo', 'Observadas', 'T_Operativo', 'T_Parada', 'T_Planificado', 'Perf_Num', 'Disp_Num', 'Cal_Num', 'OEE_Num']
         for c in cols_metrics:
             if c in df_metrics.columns: df_metrics[c] = pd.to_numeric(df_metrics[c], errors='coerce').fillna(0)
@@ -182,6 +192,7 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio):
         else:
             df_trend = df_trend_piezas if not df_trend_piezas.empty else df_trend_oee
 
+        # Limpieza de eventos
         if df_raw.empty: 
             df_raw = pd.DataFrame(columns=['Area', 'Grupo', 'Máquina', 'Tiempo (Min)', 'Nivel Evento 1', 'Nivel Evento 2', 'Nivel Evento 3', 'Nivel Evento 4', 'Estado_Global', 'Categoria_Macro', 'Detalle_Final'])
         else:
@@ -239,16 +250,15 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     pdf = ReportePDF(f"GESTIÓN A LA VISTA - {area}", label_reporte, theme_color)
     
     df_m = df_metrics_pdf.copy(); df_t = df_trend.copy(); df_r = df_pdf_raw.copy()
-            
     df_m_all = df_m.copy(); df_t_all = df_t.copy(); df_r_all = df_r.copy()
 
-    # Filtrar por Área (Fábrica) a menos que sea GLOBAL
+    # Filtrar por Área (a menos que sea Global) usando el dato nativo SQL
     if area.upper() != "GLOBAL":
         df_m = df_m[df_m['Area'] == area.upper()]
         df_t = df_t[df_t['Area'] == area.upper()]
         df_r = df_r[df_r['Area'] == area.upper()]
     
-    # Obtener grupos disponibles dinámicamente según la data de la DB
+    # Obtener grupos dinámicamente
     grupos_area = sorted([g for g in df_m['Grupo'].unique() if g and g != 'SIN GRUPO'])
     paginas = ['GENERAL'] if area.upper() == "GLOBAL" else ['GENERAL'] + grupos_area
 
@@ -259,7 +269,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         
         if target == 'GENERAL':
             if area.upper() == 'SOLDADURA':
-                # Excluir celdas nuevas del target general si Fumiscor lo sigue requiriendo
+                # Si deseas seguir excluyendo celdas nuevas del resumen general:
                 df_m_target = df_m[~df_m['Grupo'].str.contains('NUEVA', na=False)]
                 df_t_target = df_t[~df_t['Grupo'].str.contains('NUEVA', na=False)]
                 df_r_target = df_r[~df_r['Grupo'].str.contains('NUEVA', na=False)]
@@ -325,7 +335,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         for i, (lbl, data) in enumerate(kpis.items()):
             v = data["val"]
             obj = data["obj"]
-            
             if v < obj: bg_col, txt_col = (231, 76, 60), 255
             else: bg_col, txt_col = (46, 204, 113), 255
 
@@ -337,7 +346,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
 
         def add_trend_bar(df_in, col, title, x_pos, y_pos, target_val, off_val=None, draw_large=False):
             if df_in.empty: return
-            
             cols_req = ['OEE_Num', 'T_Planificado', 'Perf_Num', 'T_Operativo', 'Disp_Num', 'Cal_Num', 'Totales']
             for c in cols_req:
                 if c in df_in.columns: df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
@@ -357,9 +365,7 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             else: return
             
             if df_g['Val'].max() > 1.5: df_g['Val'] /= 100.0
-
-            if off_val is not None:
-                df_g.loc[df_g['Month'] == mes_seleccionado, 'Val'] = off_val
+            if off_val is not None: df_g.loc[df_g['Month'] == mes_seleccionado, 'Val'] = off_val
 
             ytd_v = 0
             if col == 'OEE': ytd_v = df_valid['OEE_Num'].sum() / df_valid['T_Planificado'].sum() if df_valid['T_Planificado'].sum() > 0 else 0
@@ -380,7 +386,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             upper_limit = max(1.1, max_y * 1.3, target_val * 1.2)
 
             fig = go.Figure(data=[go.Bar(x=df_g['Mes_Str'], y=df_g['Val'], marker=dict(color=df_g['Color'], line=dict(color='rgba(0,0,0,0.8)', width=2)), text=df_g['Val'], texttemplate='<b>%{text:.1%}</b>', textposition='outside', opacity=0.85)])
-            
             fig.add_hline(y=target_val, line_dash="dash", line_color="#2ECC71", line_width=2, annotation_text=f"<b>Obj: {target_val*100:.0f}%</b>", annotation_font_color='black', annotation_position="top left")
             
             if len(df_g) > 1:
@@ -397,7 +402,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.draw_panel(10, 48, 136, 75); pdf.draw_panel(149, 48, 138, 75)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, TARGETS["OEE"], v_oee, draw_large=True)
             add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, TARGETS["PERFORMANCE"], v_perf, draw_large=True) 
-            
             pdf.draw_panel(10, 126, 136, 75); pdf.draw_panel(149, 126, 138, 75)
             add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 126, TARGETS["DISPONIBILIDAD"], v_disp, draw_large=True)
             add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 126, TARGETS["CALIDAD"], v_cal, draw_large=True)
@@ -405,7 +409,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.draw_panel(10, 48, 136, 52); pdf.draw_panel(149, 48, 138, 52)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, TARGETS["OEE"], v_oee)
             add_trend_bar(df_t_target, 'PERFORMANCE', 'PERFORMANCE (%) - EVOLUCIÓN MENSUAL', 150, 48, TARGETS["PERFORMANCE"], v_perf) 
-            
             pdf.draw_panel(10, 102, 136, 52); pdf.draw_panel(149, 102, 138, 52)
             add_trend_bar(df_t_target, 'DISPONIBILIDAD', 'DISPONIBILIDAD (%) - EVOLUCIÓN MENSUAL', 10, 102, TARGETS["DISPONIBILIDAD"], v_disp)
             add_trend_bar(df_t_target, 'CALIDAD', 'CALIDAD (%) - EVOLUCIÓN MENSUAL', 150, 102, TARGETS["CALIDAD"], v_cal)
@@ -414,7 +417,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(10, 156); pdf.set_font("Times", 'B', 11); pdf.set_text_color(0); pdf.cell(136, 6, "TOP 5 FALLOS", border=0, ln=True, align='C')
             
             df_f = df_r_target[df_r_target['Estado_Global'] == 'Falla/Gestión'] if not df_r_target.empty else pd.DataFrame()
-            
             if not df_f.empty and df_f['Tiempo (Min)'].sum() > 0:
                 excluir = ['BAÑO', 'BANO', 'REFRIGERIO', 'DESCANSO']
                 mask_puras = ~df_f['Detalle_Final'].str.upper().apply(lambda x: any(excl in x for excl in excluir))
@@ -457,6 +459,7 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     
     df_t = df_trend.copy(); df_p = df_piezas.copy()
     
+    # Filtrar por Área NATIVA
     df_t = df_t[df_t['Area'] == area.upper()]
     df_p = df_p[df_p['Area'] == area.upper()]
 
@@ -594,13 +597,13 @@ def calcular_kpis_base(df_m_raw):
     # Nivel Global
     resultados.append(calc_r('GLOBAL', 'GLOBAL', df))
     
-    # Nivel Fábrica (ej. ESTAMPADO, SOLDADURA)
-    areas_unicas = [a for a in df['Area'].unique() if pd.notna(a) and a != 'SIN AREA']
+    # Nivel Fábrica
+    areas_unicas = sorted([a for a in df['Area'].unique() if pd.notna(a) and a != 'SIN AREA'])
     for a in areas_unicas:
         resultados.append(calc_r(a, 'FABRICA', df[df['Area'] == a]))
         
-    # Nivel Línea (ej. BALANCINES, PRENSAS)
-    grupos_unicos = [g for g in df['Grupo'].unique() if pd.notna(g) and g != 'SIN GRUPO']
+    # Nivel Línea
+    grupos_unicos = sorted([g for g in df['Grupo'].unique() if pd.notna(g) and g != 'SIN GRUPO'])
     for g in grupos_unicos:
         resultados.append(calc_r(g, 'LINEA', df[df['Grupo'] == g]))
         
