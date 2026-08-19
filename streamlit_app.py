@@ -282,7 +282,16 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             else:
                 df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
         else:
-            df_m_target = df_m[df_m['Grupo'] == target]; df_t_target = df_t[df_t['Grupo'] == target]; df_r_target = df_r[df_r['Grupo'] == target]
+            df_m_target = df_m[df_m['Grupo'] == target]
+            df_t_target = df_t[df_t['Grupo'] == target]
+            df_r_target = df_r[df_r['Grupo'] == target]
+            
+            # ---> NUEVO: Solo incluir Celda 1, 2 y 3 para CELDAS NUEVAS
+            if target == 'CELDAS NUEVAS':
+                incluidas = ['CELDA 01 FUMIS', 'CELDA 02 FUMIS', 'CELDA 03 FUMIS']
+                df_m_target = df_m_target[df_m_target['Máquina'].str.strip().str.upper().isin(incluidas)]
+                df_t_target = df_t_target[df_t_target['Máquina'].str.strip().str.upper().isin(incluidas)]
+                df_r_target = df_r_target[df_r_target['Máquina'].str.strip().str.upper().isin(incluidas)]
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(40, 6, "PERIODO", 1, 0, 'C', fill=True)
@@ -499,8 +508,18 @@ def crear_pdf_informe_productivo(area, label_reporte, df_trend, df_piezas, mes_s
     for target in paginas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
         
-        if target == 'GENERAL': df_t_target = df_t; df_p_target = df_p
-        else: df_t_target = df_t[df_t['Grupo'] == target]; df_p_target = df_p[df_p['Grupo'] == target]
+        if target == 'GENERAL': 
+            df_t_target = df_t
+            df_p_target = df_p
+        else: 
+            df_t_target = df_t[df_t['Grupo'] == target]
+            df_p_target = df_p[df_p['Grupo'] == target]
+            
+            # ---> NUEVO: Solo incluir Celda 1, 2 y 3 para CELDAS NUEVAS
+            if target == 'CELDAS NUEVAS':
+                incluidas = ['CELDA 01 FUMIS', 'CELDA 02 FUMIS', 'CELDA 03 FUMIS']
+                df_t_target = df_t_target[df_t_target['Máquina'].str.strip().str.upper().isin(incluidas)]
+                df_p_target = df_p_target[df_p_target['Máquina'].str.strip().str.upper().isin(incluidas)]
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(20, 6, "MES", 1, 0, 'C', fill=True); pdf.cell(20, 6, "AÑO", 1, 0, 'C', fill=True); pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}", 1, 0, 'C', fill=True); pdf.cell(40, 6, "AREA", 1, 1, 'C', fill=True)
@@ -628,8 +647,16 @@ def calcular_kpis_base(df_m_raw):
     resultados.append(calc_r('GLOBAL', 'GLOBAL', df))
     resultados.append(calc_r('ESTAMPADO', 'FABRICA', df[df['Grupo'].isin(GRUPOS_ESTAMPADO)]))
     resultados.append(calc_r('SOLDADURA', 'FABRICA', df[df['Grupo'].isin(GRUPOS_SOLDADURA)]))
+    
     for g in GRUPOS_ESTAMPADO + GRUPOS_SOLDADURA:
-        resultados.append(calc_r(g, 'LINEA', df[df['Grupo'] == g]))
+        df_grupo = df[df['Grupo'] == g]
+        
+        # ---> NUEVO: Solo incluir Celda 1, 2 y 3 para el pre-cálculo de CELDAS NUEVAS
+        if g == 'CELDAS NUEVAS':
+            incluidas = ['CELDA 01 FUMIS', 'CELDA 02 FUMIS', 'CELDA 03 FUMIS']
+            df_grupo = df_grupo[df_grupo['Máquina'].str.strip().str.upper().isin(incluidas)]
+            
+        resultados.append(calc_r(g, 'LINEA', df_grupo))
         
     return pd.DataFrame(resultados)
 
