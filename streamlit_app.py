@@ -292,13 +292,28 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
     df_t = df_t[df_t['Grupo'].isin(grupos_area)]
     df_r = df_r[df_r['Grupo'].isin(grupos_area)]
     
-    paginas = ['GENERAL'] if area.upper() == "GLOBAL" else ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
+    paginas_base = ['GENERAL'] if area.upper() == "GLOBAL" else ['GENERAL'] + [g for g in grupos_area if g in df_m['Grupo'].unique()]
+
+    # --- NUEVO: REEMPLAZAR CELDAS NUEVAS POR MÁQUINAS INDIVIDUALES ---
+    paginas_extendidas = []
+    for p in paginas_base:
+        if p == 'CELDAS NUEVAS':
+            celdas_a_incluir = ['Celda 01 Fumis', 'Celda 02 Fumis', 'Celda 03 Fumis']
+            for c in celdas_a_incluir:
+                # Validar si esa celda tuvo algo de datos en el mes
+                if not df_m[df_m['Máquina'].str.strip().str.upper() == c.upper()].empty:
+                    paginas_extendidas.append(f"MAQUINA:{c}")
+        else:
+            paginas_extendidas.append(p)
 
     # DEFINICIÓN DE OBJETIVOS FUMISCOR
     TARGETS = {"OEE": 0.75, "PERFORMANCE": 0.90, "DISPONIBILIDAD": 0.88, "CALIDAD": 0.95}
 
-    for target in paginas:
+    for target in paginas_extendidas:
         pdf.add_page(orientation='L'); pdf.set_auto_page_break(False); pdf.add_gradient_background()
+        
+        is_maquina = target.startswith("MAQUINA:")
+        nombre_real = target.split(":")[1] if is_maquina else target
         
         if target == 'GENERAL':
             if area.upper() == 'SOLDADURA':
@@ -309,12 +324,20 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
                 df_m_target = df_m_all; df_t_target = df_t_all; df_r_target = df_r_all
             else:
                 df_m_target = df_m; df_t_target = df_t; df_r_target = df_r
+        elif is_maquina:
+            df_m_target = df_m[df_m['Máquina'].str.strip().str.upper() == nombre_real.upper()]
+            df_t_target = df_t[df_t['Máquina'].str.strip().str.upper() == nombre_real.upper()]
+            df_r_target = df_r[df_r['Máquina'].str.strip().str.upper() == nombre_real.upper()]
         else:
-            df_m_target = df_m[df_m['Grupo'] == target]; df_t_target = df_t[df_t['Grupo'] == target]; df_r_target = df_r[df_r['Grupo'] == target]
+            df_m_target = df_m[df_m['Grupo'] == nombre_real]
+            df_t_target = df_t[df_t['Grupo'] == nombre_real]
+            df_r_target = df_r[df_r['Grupo'] == nombre_real]
+        
+        titulo_header = "PLANTA GLOBAL FUMISCOR - RESUMEN GENERAL" if (target == 'GENERAL' and area.upper() == "GLOBAL") else f"PLANTA {area.upper()} - {nombre_real}"
         
         pdf.set_y(10); pdf.set_fill_color(*theme_color); pdf.set_text_color(255); pdf.set_font("Arial", 'B', 10)
         pdf.cell(40, 6, "PERIODO", 1, 0, 'C', fill=True)
-        pdf.cell(197, 6, f"PLANTA {area.upper()} - {target}" if area.upper() != "GLOBAL" else "PLANTA GLOBAL FUMISCOR - RESUMEN GENERAL", 1, 0, 'C', fill=True)
+        pdf.cell(197, 6, titulo_header, 1, 0, 'C', fill=True)
         pdf.cell(40, 6, "INFORME", 1, 1, 'C', fill=True)
         
         pdf.set_fill_color(255, 255, 255); pdf.set_font("Arial", '', 10); pdf.set_text_color(0)
@@ -324,7 +347,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             if 'Totales' not in df_m_target.columns:
                 df_m_target['Totales'] = df_m_target['Buenas'] + df_m_target['Retrabajo'] + df_m_target['Observadas']
             
-            # --- CORRECCIÓN MATEMÁTICA: SOLO FILTRAMOS POR TIEMPO PLANIFICADO > 0 ---
             valid_m = df_m_target[df_m_target['T_Planificado'] > 0].copy()
         else:
             valid_m = pd.DataFrame()
@@ -336,8 +358,10 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             if target == 'GENERAL':
                 if area.upper() == 'GLOBAL': row = df_oficial[df_oficial['Nivel'] == 'GLOBAL']
                 else: row = df_oficial[(df_oficial['Nivel'] == 'FABRICA') & (df_oficial['Grupo'].str.contains(area.upper(), na=False))]
+            elif is_maquina:
+                row = pd.DataFrame() # No hay dato oficial en el CUBO para máquinas individuales
             else:
-                row = df_oficial[(df_oficial['Nivel'] == 'LINEA') & (df_oficial['Grupo'] == target)]
+                row = df_oficial[(df_oficial['Nivel'] == 'LINEA') & (df_oficial['Grupo'] == nombre_real)]
                 
             if not row.empty:
                 v_oee = row['Oee'].values[0]
@@ -386,7 +410,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             for c in cols_req:
                 if c in df_in.columns: df_in[c] = pd.to_numeric(df_in[c], errors='coerce').fillna(0)
             
-            # --- CORRECCIÓN MATEMÁTICA EN TENDENCIA ---
             df_valid = df_in[df_in['T_Planificado'] > 0].copy()
                 
             if df_valid.empty: return
@@ -615,7 +638,7 @@ ignorar_piezas_h = st.checkbox("Ignorar piezas H (Proyecto H)", value=False)
 lista_piezas_h = get_piezas_h() if ignorar_piezas_h else []
 
 if ignorar_piezas_h:
-    st.success("✅ **Filtro Activado:** Se omitirán del reporte las piezas H que tuvieron producción, y todos los KPIs serán pre-calculados matemáticamente (Celdas 1,2,3).")
+    st.success("✅ **Filtro Activado:** Se omitirán del reporte las piezas H que tuvieron producción, y todos los KPIs serán pre-calculados matemáticamente (Celdas 1,2,3 separadas).")
 
 with st.spinner("Conectando con la base de datos de Fumiscor..."):
     df_m, df_r, df_t, df_p, df_oficial = fetch_data_from_db(ini, fin, m_sel, a_sel, lista_piezas_h)
@@ -643,15 +666,11 @@ def calcular_kpis_base(df_m_raw):
         t_op = data['T_Operativo'].sum()
         t_pz = data['Totales'].sum()
         
-        # 1. Cálculo crudo (sin multiplicar por 100 todavía)
         v_perf = (data['Perf_Num'].sum() / t_op) if t_op > 0 else 0
         v_disp = (data['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
         v_cal = (data['Cal_Num'].sum() / t_pz) if t_pz > 0 else 0
         v_oee = (data['OEE_Num'].sum() / t_plan) if t_plan > 0 else 0
         
-        # 2. Ajuste dinámico: 
-        # Si el valor de la BD es <= 1.5, lo multiplicamos por 100 para que la tabla lo muestre bien (0-100)
-        # Si ya es mayor (ej: 87.5 de Wiidem o pre-calculado), lo dejamos quieto para evitar miles.
         if 0 < v_perf <= 1.5: v_perf *= 100
         if 0 < v_disp <= 1.5: v_disp *= 100
         if 0 < v_cal <= 1.5: v_cal *= 100
@@ -679,7 +698,6 @@ if not df_base_editor.empty and not df_oficial.empty:
     df_base_editor.set_index(['Nivel', 'Grupo'], inplace=True)
     df_of_idx = df_oficial.set_index(['Nivel', 'Grupo'])
     
-    # --- EXCLUIR CELDAS NUEVAS DE WIIDEM SIEMPRE (Calculo manual de Celdas 1,2,3) ---
     if ('LINEA', 'CELDAS NUEVAS') in df_of_idx.index:
         df_of_idx = df_of_idx.drop(index=('LINEA', 'CELDAS NUEVAS'))
     
