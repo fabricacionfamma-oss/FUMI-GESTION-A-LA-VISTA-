@@ -50,7 +50,7 @@ MAQUINAS_MAP = {
     "DOB-006": "GME-05 - DOBLADORA", "DOB-007": "GME-05 - DOBLADORA", "DOB-008": "GME-05 - DOBLADORA", 
     "DOB-009": "GME-05 - DOBLADORA", "DOB-010": "GME-05 - DOBLADORA",
     
-    # --- CELDAS NUEVAS (SOLO 1, 2 Y 3. LAS DEMÁS SE EXCLUYEN AL NO ESTAR MAPDEADAS A ESTE GRUPO) ---
+    # --- CELDAS NUEVAS (SOLO 1, 2 Y 3. LAS DEMÁS SE EXCLUYEN) ---
     "Celda 01 Fumis": "CELDAS NUEVAS", 
     "Celda 02 Fumis": "CELDAS NUEVAS", 
     "Celda 03 Fumis": "CELDAS NUEVAS", 
@@ -169,7 +169,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio, lista_piezas_h=None):
             piezas_str = ", ".join([f"'{p}'" for p in lista_piezas_h])
             prod_where = f" AND pr.Code NOT IN ({piezas_str}) "
             
-            # Al filtrar por pieza, DEBEMOS usar PROD_M_01 unida a PRODUCT
             q_metrics = f"SELECT c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Year = {anio} AND p.Month = {mes} {prod_where} GROUP BY c.Name"
             
             q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Year = {anio} AND p.Month <= {mes} {prod_where} GROUP BY p.Month, c.Name"
@@ -178,7 +177,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio, lista_piezas_h=None):
             
             q_piezas = f"SELECT c.Name as Máquina, COALESCE(pr.Code, 'S/C') as Pieza, SUM(COALESCE(p.Scrap, 0)) as Scrap, SUM(COALESCE(p.Rework, 0)) as RT FROM PROD_M_01 p JOIN CELL c ON p.CellId = c.CellId JOIN PRODUCT pr ON p.ProductId = pr.ProductId WHERE p.Year = {anio} AND p.Month = {mes} {prod_where} GROUP BY c.Name, pr.Code"
         else:
-            # Consultas originales (Usan PROD_M_03)
             q_metrics = f"SELECT c.Name as Máquina, SUM(COALESCE(p.Good, 0)) as Buenas, SUM(COALESCE(p.Rework, 0)) as Retrabajo, SUM(COALESCE(p.Scrap, 0)) as Observadas, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month = {mes} GROUP BY c.Name"
             
             q_trend_oee_monthly = f"SELECT p.Month, c.Name as Máquina, SUM(COALESCE(p.ProductiveTime, 0)) as T_Operativo, SUM(COALESCE(p.DownTime, 0)) as T_Parada, SUM(COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0)) as T_Planificado, SUM(COALESCE(p.Performance, 0) * COALESCE(p.ProductiveTime, 0)) as Perf_Num, SUM(COALESCE(p.Availability, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as Disp_Num, SUM(COALESCE(p.Quality, 0) * (COALESCE(p.Good, 0) + COALESCE(p.Rework, 0) + COALESCE(p.Scrap, 0))) as Cal_Num, SUM(COALESCE(p.Oee, 0) * (COALESCE(p.ProductiveTime, 0) + COALESCE(p.DownTime, 0))) as OEE_Num FROM PROD_M_03 p JOIN CELL c ON p.CellId = c.CellId WHERE p.Year = {anio} AND p.Month <= {mes} GROUP BY p.Month, c.Name"
@@ -200,7 +198,6 @@ def fetch_data_from_db(fecha_ini, fecha_fin, mes, anio, lista_piezas_h=None):
         df_trend_piezas = conn.query(q_trend_piezas_monthly).fillna(0)
         df_oficial = pd.concat([conn.query(q_m06).fillna(0), conn.query(q_m05).fillna(0), conn.query(q_m04).fillna(0)], ignore_index=True)
 
-        # Si ignoramos piezas, vaciamos df_oficial para forzar cálculo manual
         if lista_piezas_h and not df_oficial.empty:
             df_oficial = pd.DataFrame()
 
@@ -305,8 +302,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
         
         if target == 'GENERAL':
             if area.upper() == 'SOLDADURA':
-                # Al igual que el reporte original, excluimos CELDAS NUEVAS del General Soldadura 
-                # (si este es tu requerimiento estándar, sino quítalo)
                 df_m_target = df_m[df_m['Grupo'] != 'CELDAS NUEVAS']
                 df_t_target = df_t[df_t['Grupo'] != 'CELDAS NUEVAS']
                 df_r_target = df_r[df_r['Grupo'] != 'CELDAS NUEVAS']
@@ -361,7 +356,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             v_disp = (valid_m['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
             v_cal = (valid_m['Cal_Num'].sum() / t_piezas) if t_piezas > 0 else 0
         
-        # Corrección dinámica para porcentajes
         if v_oee > 1.5 or v_perf > 1.5 or v_disp > 1.5:
             v_oee /= 100.0; v_perf /= 100.0; v_disp /= 100.0; v_cal /= 100.0
             
@@ -385,7 +379,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             pdf.set_xy(x, y_kpi + 8); pdf.set_font("Arial", 'B', 20); pdf.cell(65, 10, f"{v*100:.1f}%", 0, 0, 'C')
         pdf.set_text_color(0)
 
-        # Gráficos de Tendencia
         def add_trend_bar(df_in, col, title, x_pos, y_pos, target_val, off_val=None, draw_large=False):
             if df_in.empty: return
             
@@ -412,7 +405,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             if off_val is not None:
                 df_g.loc[df_g['Month'] == mes_seleccionado, 'Val'] = off_val
 
-            # Cálculo de Acumulado
             ytd_v = 0
             if col == 'OEE': ytd_v = df_valid['OEE_Num'].sum() / df_valid['T_Planificado'].sum() if df_valid['T_Planificado'].sum() > 0 else 0
             elif col == 'PERFORMANCE': ytd_v = df_valid['Perf_Num'].sum() / df_valid['T_Operativo'].sum() if df_valid['T_Operativo'].sum() > 0 else 0
@@ -445,7 +437,6 @@ def crear_pdf_gestion_a_la_vista(area, label_reporte, df_metrics_pdf, df_pdf_raw
             w_pdf = 132 if not draw_large else 134
             img = save_chart(fig, w_img, h_img); pdf.image(img, x=x_pos+2, y=y_pos+2, w=w_pdf); os.remove(img)
 
-        # Inserción de Paneles y Gráficos
         if area.upper() == "GLOBAL":
             pdf.draw_panel(10, 48, 136, 75); pdf.draw_panel(149, 48, 138, 75)
             add_trend_bar(df_t_target, 'OEE', 'OEE (%) - EVOLUCIÓN MENSUAL', 10, 48, TARGETS["OEE"], v_oee, draw_large=True)
@@ -652,13 +643,26 @@ def calcular_kpis_base(df_m_raw):
         t_op = data['T_Operativo'].sum()
         t_pz = data['Totales'].sum()
         
-        # Corrección: En editor el usuario ve 0-100, la función de PDF espera decimal y si >1.5 divide /100.
+        # 1. Cálculo crudo (sin multiplicar por 100 todavía)
+        v_perf = (data['Perf_Num'].sum() / t_op) if t_op > 0 else 0
+        v_disp = (data['Disp_Num'].sum() / t_plan) if t_plan > 0 else 0
+        v_cal = (data['Cal_Num'].sum() / t_pz) if t_pz > 0 else 0
+        v_oee = (data['OEE_Num'].sum() / t_plan) if t_plan > 0 else 0
+        
+        # 2. Ajuste dinámico: 
+        # Si el valor de la BD es <= 1.5, lo multiplicamos por 100 para que la tabla lo muestre bien (0-100)
+        # Si ya es mayor (ej: 87.5 de Wiidem o pre-calculado), lo dejamos quieto para evitar miles.
+        if 0 < v_perf <= 1.5: v_perf *= 100
+        if 0 < v_disp <= 1.5: v_disp *= 100
+        if 0 < v_cal <= 1.5: v_cal *= 100
+        if 0 < v_oee <= 1.5: v_oee *= 100
+
         return {
             'Nivel': nivel, 'Grupo': name,
-            'Performance': (data['Perf_Num'].sum() / t_op * 100) if t_op > 0 else 0,
-            'Disp': (data['Disp_Num'].sum() / t_plan * 100) if t_plan > 0 else 0,
-            'Cal': (data['Cal_Num'].sum() / t_pz * 100) if t_pz > 0 else 0,
-            'Oee': (data['OEE_Num'].sum() / t_plan * 100) if t_plan > 0 else 0
+            'Performance': v_perf,
+            'Disp': v_disp,
+            'Cal': v_cal,
+            'Oee': v_oee
         }
 
     resultados.append(calc_r('GLOBAL', 'GLOBAL', df))
