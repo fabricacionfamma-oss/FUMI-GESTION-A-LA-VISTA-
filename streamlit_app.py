@@ -149,8 +149,13 @@ def clean_text(text):
 
 def save_chart(fig, w=600, h=300):
     fig.update_layout(width=w, height=h, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    # Convertimos la figura a bytes en memoria (evita que Kaleido intente abrir archivos físicos)
+    img_bytes = fig.to_image(format="png", engine="kaleido", scale=2.5)
+    
+    # Python escribe los bytes en el archivo temporal de forma segura
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        fig.write_image(tmp.name, engine="kaleido", scale=2.5); return tmp.name
+        tmp.write(img_bytes)
+        return tmp.name
 
 # ==========================================
 # 2. CARGA DE DATOS HÍBRIDA (INCLUYE PIEZAS H)
@@ -731,7 +736,7 @@ st.write("### 3. Preparar y Descargar Reportes")
 c_d, c_p, c_g = st.columns(3)
 
 with c_d:
-    st.markdown("#### ⚙️ Disponibilidad (OEE)")
+    st.markdown("#### ⚙️️ Disponibilidad (OEE)")
     if not df_m.empty:
         if st.button("⚙️ Preparar PDF Estampado", use_container_width=True):
             with st.spinner("Generando documento..."):
